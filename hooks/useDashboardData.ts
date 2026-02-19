@@ -1,84 +1,130 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 
 export function useDashboardData(currentDate: Date | null) {
-    // O loading começa como true se houver uma data, caso contrário false para não travar a UI
     const [loading, setLoading] = useState(!!currentDate);
     const [data, setData] = useState({
         carregamentos: [] as any[],
         cargasPendentes: [] as any[],
         modais: [] as any[],
         desempenhoReal: [] as any[],
-        mediasCustos: [] as any[] // <--- Novo estado
+        mediasCustos: [] as any[]
     });
 
     const supabase = createClient();
 
-    const fetchAllData = useCallback(async () => {
-        // Se não houver data definida (comum no primeiro render do Next.js), aborta a busca
-        if (!currentDate) {
-            setLoading(false);
-            return;
-        }
+const fetchAllData = useCallback(async () => {
+    if (!currentDate) {
+        setLoading(false);
+        return;
+    }
 
-        setLoading(true);
+    setLoading(false);
 
-        // Define o intervalo de visualização (geralmente o que aparece no grid do calendário)
-        const start = startOfWeek(startOfMonth(currentDate)).toISOString();
-        const end = endOfWeek(endOfMonth(currentDate)).toISOString();
+    const start = startOfWeek(startOfMonth(currentDate)).toISOString();
+    const end = endOfWeek(endOfMonth(currentDate)).toISOString();
 
-        try {
-            // Promise.all para buscar tudo em paralelo e ganhar performance
-            const [carregamentosRes, cargasRes, modaisRes, desempenhoRes, mediasRes] = await Promise.all([
-                supabase.from('carregamentos').select('*').gte('data_carregamento', start).lte('data_carregamento', end),
-                supabase.from('cargas').select('*'),
-                supabase.from('modais').select('*'),
-                supabase.from('view_detalhe_carregamentos').select('*'),
-                supabase.from('view_custos_por_tp').select('*')
-            ]);
+    try {
+        // Mudamos para uma sintaxe mais limpa e robusta
+        const [carregamentosRes, cargasRes, modaisRes, desempenhoRes, mediasRes] = await Promise.all([
+            supabase
+                .from('carregamentos')
+                .select('*')
+                // Filtro: (Status é previsto/confirmado) OU (Data está no intervalo do calendário)
+                .or(`status.in.("previsto","confirmado"),and(data_carregamento.gte.${start},data_carregamento.lte.${end})`),
+            
+            supabase.from('cargas').select('*'),
+            supabase.from('modais').select('*'),
+            supabase.from('view_detalhe_carregamentos').select('*'),
+            supabase.from('view_custos_por_tp').select('*')
+        ]);
 
-            // Verificação de erros básica para cada request
-            if (carregamentosRes.error) throw carregamentosRes.error;
+        if (carregamentosRes.error) throw carregamentosRes.error;
 
-            setData({
-                carregamentos: carregamentosRes.data || [],
-                cargasPendentes: cargasRes.data || [],
-                modais: modaisRes.data || [],
-                desempenhoReal: desempenhoRes.data || [],
-                mediasCustos: mediasRes.data || []
-            });
-        } catch (error) {
-            console.error("Erro ao buscar dados do dashboard:", error);
-        } finally {
-            setLoading(false);
-        }
-    }, [currentDate, supabase]); // supabase incluído como dependência estável
+        setData({
+            carregamentos: carregamentosRes.data || [],
+            cargasPendentes: cargasRes.data || [],
+            modais: modaisRes.data || [],
+            desempenhoReal: desempenhoRes.data || [],
+            mediasCustos: mediasRes.data || []
+        });
+    } catch (error: any) {
+        // Melhoria no log para ver o que realmente está vindo do Supabase
+        console.error("Erro detalhado:", error.message || error);
+    } finally {
+        setLoading(false);
+    }
+}, [currentDate, supabase]);
 
-    // Efeito para buscar dados sempre que a data de referência mudar
     useEffect(() => {
         fetchAllData();
     }, [fetchAllData]);
 
     /**
-     * Calcula a ocupação e métricas financeiras de um carregamento específico
+     * CÁLCULO DE OCUPAÇÃO COM SALDO GLOBAL
      */
-    const getOcupacaoInfo = useCallback((carregamento: any) => {
-        if (!carregamento) {
-            return { cubagem: 0, capacidade: 1, percentual: 0, fatLiq: 0, custoLiq: 0 };
-        }
+    const ocupacaoProcessada = useMemo(() => {
+        if (data.carregamentos.length === 0) return {};
 
-        // Busca o modal correspondente para saber a capacidade total
+        // 1. Ordenar TODOS os carregamentos por data (do mais antigo para o mais novo)
+        const todosCarregamentosOrdenados = [...data.carregamentos].sort((a, b) => 
+            new Date(a.data_carregamento).getTime() - new Date(b.data_carregamento).getTime()
+        );
+
+        // 2. Saldo inicial de cargas (o que temos hoje no pátio)
+        const saldoCargasPorUF: Record<string, number> = {};
+        data.cargasPendentes.forEach(carga => {
+            const uf = carga.uf?.toUpperCase();
+            if (uf) {
+                saldoCargasPorUF[uf] = (saldoCargasPorUF[uf] || 0) + (Number(carga.cubagem) || 0);
+            }
+        });
+
+        const distribuicao: Record<string, number> = {};
+
+        // 3. Abatimento sequencial
+        todosCarregamentosOrdenados.forEach(curr => {
+            // Se já foi realizado, ele não consome mais o "saldo pendente" (já virou dado real)
+            if (curr.status === 'coletado' || curr.status === 'cancelado') return;
+
+            const modal = data.modais.find(m => m.codigo === curr.perfil);
+            const capacidadeCaminhao = modal?.capacidade_m3 || 0;
+            const estadosAtendidos = curr.estados_atendidos || [];
+            
+            let volumeAlocado = 0;
+
+            estadosAtendidos.forEach((uf: string) => {
+                const ufUpper = uf.toUpperCase();
+                const disponivelNaUF = saldoCargasPorUF[ufUpper] || 0;
+
+                if (disponivelNaUF > 0 && volumeAlocado < capacidadeCaminhao) {
+                    const espacoLivre = capacidadeCaminhao - volumeAlocado;
+                    const consumo = Math.min(disponivelNaUF, espacoLivre);
+
+                    volumeAlocado += consumo;
+                    saldoCargasPorUF[ufUpper] -= consumo;
+                }
+            });
+
+            distribuicao[curr.id] = volumeAlocado;
+        });
+
+        return distribuicao;
+    }, [data.carregamentos, data.cargasPendentes, data.modais]);
+
+    const getOcupacaoInfo = useCallback((carregamento: any) => {
+        if (!carregamento) return { cubagem: 0, capacidade: 1, percentual: 0, fatLiq: 0, custoLiq: 0 };
+
         const modal = data.modais.find(m => m.codigo === carregamento.perfil);
-        const capacidade = modal?.capacidade_m3 || 1; // Evita divisão por zero
+        const capacidade = modal?.capacidade_m3 || 1;
 
         let cubagemCalculada = 0;
         let fatLiq = 0;
         let custoLiq = 0;
 
-        // Se já foi coletado, pegamos os dados reais da View de desempenho
         if (carregamento.status === 'coletado') {
             const detalhe = data.desempenhoReal.find(d => d.carregamento_id === carregamento.id);
             if (detalhe) {
@@ -87,13 +133,7 @@ export function useDashboardData(currentDate: Date | null) {
                 custoLiq = detalhe.custo_liquido_total || 0;
             }
         } else {
-            // Se for previsto/agendado, calculamos a soma das cargas pendentes 
-            // que batem com os estados atendidos pelo carregamento
-            cubagemCalculada = data.cargasPendentes
-                .filter(carga =>
-                    carregamento.estados_atendidos?.includes(carga.uf)
-                )
-                .reduce((acc, curr) => acc + (Number(curr.cubagem) || 0), 0);
+            cubagemCalculada = ocupacaoProcessada[carregamento.id] || 0;
         }
 
         return {
@@ -103,7 +143,7 @@ export function useDashboardData(currentDate: Date | null) {
             fatLiq,
             custoLiq
         };
-    }, [data.modais, data.desempenhoReal, data.cargasPendentes]);
+    }, [data.modais, data.desempenhoReal, ocupacaoProcessada]);
 
     return {
         ...data,
