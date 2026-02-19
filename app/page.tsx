@@ -32,6 +32,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
+import { useRole } from '@/hooks/auth/useRole';
 
 // Lista de estados para o filtro
 const ESTADOS_BR = [
@@ -44,6 +45,8 @@ export default function Dashboard() {
     const [currentDate, setCurrentDate] = useState<Date | null>(null);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [selectedStates, setSelectedStates] = useState<string[]>([]);
+    const { role, isLoading: authLoading } = useRole();
+    const isAdmin = role === 'admin';
     
     const supabase = createClient();
     const { carregamentos, cargasPendentes, getOcupacaoInfo, loading, refresh } = useDashboardData(currentDate);
@@ -81,8 +84,12 @@ export default function Dashboard() {
                 .eq('id', active.id);
 
             if (!error) {
-                toast.success('Agendamento atualizado');
-                refresh();
+                if (isAdmin) {
+                    toast.success('Agendamento atualizado');
+                    refresh();
+                } else {
+                    toast.error('Você não tem permissão para atualizar o agendamento');
+                }
             } else {
                 toast.error('Erro ao atualizar agendamento');
             }
