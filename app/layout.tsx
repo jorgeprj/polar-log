@@ -9,7 +9,7 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
     metadataBase: new URL(defaultUrl),
-    title: "PolarLog",
+    title: "PolarLog - Painel de Gerenciamento" ,
     description: "Gerenciamento de Logística para Polar",
 };
 

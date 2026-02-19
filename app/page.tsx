@@ -208,7 +208,7 @@ function HeaderActions({ currentDate, setCurrentDate, refresh, selectedStates, s
                 {/* FILTRO DE ESTADOS */}
                 <Popover>
                     <PopoverTrigger asChild>
-                        <button className={`flex items-center gap-2 px-3 py-2 border text-[11px] font-black uppercase tracking-widest transition-all ${selectedStates.length > 0 ? 'bg-black text-white border-black' : 'bg-white text-zinc-900 border-zinc-200 hover:bg-zinc-50'}`}>
+                        <button className={`flex items-center gap-2 px-5 py-2.5 text-[12px] border  font-black uppercase tracking-widest transition-all ${selectedStates.length > 0 ? 'bg-black text-white border-black' : 'bg-white text-zinc-900 border-zinc-200 hover:bg-zinc-50'}`}>
                             <Filter size={14} /> 
                             {selectedStates.length > 0 ? `Estados (${selectedStates.length})` : 'Filtros'}
                         </button>

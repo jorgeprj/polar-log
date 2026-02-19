@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { MapPin, AlertTriangle, GripVertical, FileSearch } from 'lucide-react';
+import { MapPin, AlertTriangle, GripVertical, FileSearch, Lock } from 'lucide-react'; // Adicionado Lock
 import { ModalDetalhes } from './ModalDetalhes';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { useRole } from "@/hooks/auth/useRole"; // Importando o hook de permissão
 
 interface CardProps {
     carregamento?: any;
@@ -28,6 +29,10 @@ export default function CardCarregamento({
     isDraggable = true,
 }: CardProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    
+    // VALIDACÃO DE PERMISSÃO
+    const { role, isLoading: authLoading } = useRole();
+    const isAdmin = role === 'admin';
 
     const {
         attributes,
@@ -66,7 +71,6 @@ export default function CardCarregamento({
     const isFinalizado = isColetado || isCancelado;
     const canMove = isDraggable && !isFinalizado;
     
-    // Condição para mostrar aviso de CTEs faltando
     const showCTEMessage = isColetado && info.percentual === 0;
 
     const statusConfig: any = {
@@ -84,20 +88,30 @@ export default function CardCarregamento({
                 ref={setNodeRef}
                 style={styleDraggable}
                 className={`
-                    group relative flex flex-col p-3 mb-2 border border-zinc-200 border-l-[4px] cursor-pointer
+                    group relative flex flex-col p-3 mb-2 border border-zinc-200 border-l-[4px]
                     ${style.border} ${isColetado ? 'bg-zinc-50/50' : 'bg-white'} 
                     ${isCancelado ? 'opacity-50 cursor-not-allowed' : 'shadow-sm'}
                     ${canMove ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
+                    ${!isAdmin && !authLoading ? 'cursor-default' : 'hover:border-zinc-300 hover:shadow-md'}
                     rounded-r-lg min-h-[145px] transition-all duration-200 
-                    hover:shadow-md hover:border-zinc-300
                     ${isDragging ? 'shadow-2xl ring-2 ring-black/5' : ''}
                 `}
                 {...(canMove ? listeners : {})}
                 {...(canMove ? attributes : {})}
                 onClick={() => {
-                    if (!isDragging) setIsModalOpen(true);
+                    // SÓ ABRE O MODAL SE FOR ADMIN E NÃO ESTIVER CARREGANDO A ROLE
+                    if (!isDragging && isAdmin && !authLoading) {
+                        setIsModalOpen(true);
+                    }
                 }}
             >
+                {/* ÍCONE DE CADEADO PARA NÃO-ADMINS (OPCIONAL) */}
+                {!isAdmin && !authLoading && (
+                    <div className="absolute top-2 right-2 opacity-20">
+                        <Lock size={12} />
+                    </div>
+                )}
+
                 {!isFinalizado && isDraggable && (
                     <div className="absolute top-1/2 -right-1 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <GripVertical size={14} className="text-zinc-300" />
@@ -138,7 +152,6 @@ export default function CardCarregamento({
 
                 <div className="mt-auto pt-2 border-t border-zinc-100">
                     {showCTEMessage ? (
-                        /* MENSAGEM QUANDO REALIZADO MAS SEM DADOS */
                         <div className="flex items-center gap-2 py-1">
                             <FileSearch size={12} className="text-amber-500" />
                             <span className="text-[9px] font-black text-amber-600 uppercase italic tracking-tighter">
@@ -146,7 +159,6 @@ export default function CardCarregamento({
                             </span>
                         </div>
                     ) : (
-                        /* BARRA DE OCUPAÇÃO NORMAL */
                         <div className="space-y-1.5">
                             <div className="flex justify-between items-end text-[11px] font-black">
                                 <span className="text-[9px] text-zinc-400 uppercase tracking-tighter">Ocupação</span>
@@ -171,7 +183,8 @@ export default function CardCarregamento({
                 )}
             </div>
 
-            {isModalOpen && carregamento && (
+            {/* SÓ RENDERIZA O COMPONENTE DO MODAL SE PASSAR NA VALIDAÇÃO */}
+            {isModalOpen && isAdmin && carregamento && (
                 <ModalDetalhes
                     id={carregamento.id}
                     status={carregamento.status}

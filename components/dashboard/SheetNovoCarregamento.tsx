@@ -4,18 +4,24 @@ import { useState } from 'react'
 import { 
     Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription 
 } from "@/components/ui/sheet"
-import { Plus, Info, Calendar, Truck, MapPin, Loader2 } from 'lucide-react'
+import { Plus, Info, Calendar, Truck, MapPin, Loader2, Lock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useRole } from '@/hooks/auth/useRole'
+import { toast } from "sonner" // Ou o seu sistema de toast favorito
 
 export function SheetNovoCarregamento({ onSucess }: { onSucess: () => void }) {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const supabase = createClient()
+    const {role} = useRole()
+
+    const isAdmin = role === 'admin'
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
+        if (!isAdmin) return
+
         setLoading(true)
-        
         const form = e.currentTarget 
         const formData = new FormData(form)
         
@@ -38,31 +44,45 @@ export function SheetNovoCarregamento({ onSucess }: { onSucess: () => void }) {
                 .insert([payload])
 
             if (error) {
-                console.error("Erro ao inserir:", error.message)
-                alert("Erro ao salvar: " + error.message)
+                toast.error("Falha na operação", {
+                    description: error.message
+                })
             } else {
+                toast.success("Carga Agendada", {
+                    description: `Operação para ${payload.estado_destino} registrada com sucesso.`
+                })
                 setOpen(false)
                 form.reset() 
                 onSucess()
             }
         } catch (err) {
-            console.error("Erro inesperado:", err)
+            toast.error("Erro inesperado ao conectar com o servidor.")
         } finally {
             setLoading(false)
         }
     }
 
     return (
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet open={open} onOpenChange={isAdmin ? setOpen : undefined}>
             <SheetTrigger asChild>
-                <button className="flex items-center gap-2 px-5 py-2.5 bg-black text-white text-[12px] font-bold uppercase tracking-tight hover:bg-zinc-800 transition-all active:scale-95 shadow-lg">
-                    <Plus size={16} strokeWidth={3} />
+                <button 
+                    disabled={!isAdmin}
+                    className={`flex items-center gap-2 px-5 py-2.5 text-[12px] font-bold uppercase tracking-tight transition-all
+                        ${isAdmin 
+                            ? 'bg-black text-white hover:bg-zinc-800 active:scale-95' 
+                            : 'bg-zinc-100 text-zinc-400 cursor-not-allowed opacity-70 border border-zinc-300'
+                        }`}
+                >
+                    {isAdmin ? (
+                        <Plus size={16} strokeWidth={3} />
+                    ) : (
+                        <Lock size={14} className="text-zinc-400" />
+                    )}
                     Novo Carregamento
                 </button>
             </SheetTrigger>
             
             <SheetContent className="sm:max-w-[480px] p-0 border-none bg-white flex flex-col font-sans">
-                {/* Header Uber Style: Fundo Preto, Texto Branco, Sem Itálico Desnecessário */}
                 <SheetHeader className="p-10 bg-black text-white text-left space-y-2">
                     <div className="flex items-center gap-2 text-white/50 mb-2">
                         <Truck size={18} />
@@ -122,7 +142,7 @@ export function SheetNovoCarregamento({ onSucess }: { onSucess: () => void }) {
                             />
                         </div>
 
-                        {/* Destinos: Grid Uber Style */}
+                        {/* Destinos */}
                         <div className="grid grid-cols-5 gap-6">
                             <div className="col-span-2 space-y-3">
                                 <label className="flex items-center gap-2 text-[11px] font-bold uppercase text-zinc-500 tracking-wider">
@@ -158,7 +178,6 @@ export function SheetNovoCarregamento({ onSucess }: { onSucess: () => void }) {
                         </div>
                     </div>
 
-                    {/* Botão de Ação: Estilo Uber Direct */}
                     <div className="pt-10">
                         <button 
                             type="submit" 
