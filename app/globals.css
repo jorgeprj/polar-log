@@ -82,3 +82,14 @@
     background: #d4d4d8; /* zinc-300 */
   }
 }
+
+/* No seu arquivo .css ou globals.css */
+.leaflet-container {
+    z-index: 0 !important;
+}
+
+/* Garante que os controles (zoom) não sumam se você quiser mantê-los, 
+   ou abaixa eles também */
+.leaflet-control-container {
+    z-index: 1 !important;
+}

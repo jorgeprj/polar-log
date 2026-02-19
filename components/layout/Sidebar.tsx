@@ -57,8 +57,8 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', href: '/', adminOnly: false },
+        { icon: MapPin, label: 'Mapa', href: '/brasil', adminOnly: true },
         { icon: Truck, label: 'Carregamentos', href: '/carregamentos', adminOnly: true },
-        { icon: MapPin, label: 'Transit Points', href: '/tp', adminOnly: true },
         { icon: BarChart3, label: 'Custos & BI', href: '/custos', adminOnly: true },
         { icon: Settings, label: 'Configurações', href: '/settings', adminOnly: true },
     ];
@@ -84,7 +84,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
                         <Image src="/logo.png" width={32} height={32} alt="Logo" className="object-contain shrink-0" />
                     </div>
                     <div className={`flex flex-col transition-all duration-500 ${isCollapsed ? 'opacity-0 translate-x-10' : 'opacity-100 translate-x-0'}`}>
-                        <span className="text-xl font-black tracking-tighter uppercase leading-none text-nowrap">
+                        <span className="text-xl font-black tracking-tighter uppercase leading-none">
                             Polar <span className="text-zinc-400 font-medium">Log</span>
                         </span>
                     </div>

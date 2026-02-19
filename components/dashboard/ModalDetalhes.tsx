@@ -20,7 +20,7 @@ interface ModalDetalhesProps {
     cargasPendentes: any[];
     capacidadeVeiculo?: number;
     transitPointId?: number;
-    perfil?: string; 
+    perfil?: string;
 }
 
 export function ModalDetalhes({
@@ -38,7 +38,7 @@ export function ModalDetalhes({
 
     const fPercent = (v: number) => (v * 100).toFixed(1) + '%';
     const fCurrency = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-    
+
     const isPlanejamento = status === 'previsto' || status === 'confirmado' || status === 'aguardando confirmação';
 
     const dataPrevista = useMemo(() => {
@@ -46,7 +46,7 @@ export function ModalDetalhes({
             const cargasDoEstado = (cargasPendentes || []).filter(c => c.uf === uf);
             const cubagemTotal = cargasDoEstado.reduce((acc, curr) => acc + (Number(curr.cubagem) || 0), 0);
             const fatTotal = cargasDoEstado.reduce((acc, curr) => acc + (Number(curr.faturamento) || 0), 0);
-            
+
             return {
                 estado: uf,
                 modal: perfil || "N/A",
@@ -62,8 +62,8 @@ export function ModalDetalhes({
         return base.map(item => {
             const mediaCustoHistorico = statsPrevistas?.media_custo_liq || 0;
             const faturamentoUtil = item.fat_bruto * fatorCapacidadeGeral;
-            const proporcaoCustoEstado = cubagemTotalGeral > 0 
-                ? (item.cubagem_total / cubagemTotalGeral) * mediaCustoHistorico 
+            const proporcaoCustoEstado = cubagemTotalGeral > 0
+                ? (item.cubagem_total / cubagemTotalGeral) * mediaCustoHistorico
                 : 0;
 
             return {
@@ -122,7 +122,7 @@ export function ModalDetalhes({
                             </DialogTitle>
                         </div>
                         <div className="text-right">
-                             <div className="inline-flex items-center px-3 py-1 rounded-full bg-white/10 border border-white/20 text-[12px] font-medium mb-3">
+                            <div className="inline-flex items-center px-3 py-1 rounded-full bg-white/10 border border-white/20 text-[12px] font-medium mb-3">
                                 <div className={`w-2 h-2 rounded-full mr-2 ${isPlanejamento ? 'bg-blue-400' : 'bg-green-400'}`} />
                                 {status?.toUpperCase()}
                             </div>
@@ -142,19 +142,19 @@ export function ModalDetalhes({
 
                     {/* Dashboard Cards: Mais espaço, bordas finas */}
                     <div className="mt-10 grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <SummaryCard 
-                            label="Custo Projetado" 
-                            value={fCurrency(totais.custoConsiderado)} 
+                        <SummaryCard
+                            label="Custo Projetado"
+                            value={fCurrency(totais.custoConsiderado)}
                             visible={isPlanejamento}
                         />
-                        <SummaryCard 
-                            label="Faturamento Útil" 
-                            value={fCurrency(totais.faturamentoExibicao)} 
+                        <SummaryCard
+                            label="Faturamento Útil"
+                            value={fCurrency(totais.faturamentoExibicao)}
                             highlight="text-white"
                         />
-                        <SummaryCard 
-                            label="Eficiência (C/F)" 
-                            value={`${totais.percentualCustoFat.toFixed(1)}%`} 
+                        <SummaryCard
+                            label="Eficiência (C/F)"
+                            value={`${totais.percentualCustoFat.toFixed(1)}%`}
                         />
                         <div className="bg-white/10 p-5 rounded-sm border border-white/10 flex flex-col justify-between">
                             <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Ocupação Atual</span>
@@ -168,7 +168,7 @@ export function ModalDetalhes({
                                     </span>
                                 </div>
                                 <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                                    <div 
+                                    <div
                                         className={`h-full transition-all duration-1000 ${totais.percentualOcupacao > 100 ? 'bg-red-500' : 'bg-white'}`}
                                         style={{ width: `${Math.min(totais.percentualOcupacao, 100)}%` }}
                                     />
@@ -229,6 +229,27 @@ export function ModalDetalhes({
                                                 </td>
                                             </tr>
                                         ))
+
+                                    )}
+                                    {isPlanejamento && (
+                                        <tr className="bg-zinc-50/50 font-bold border-t-2 border-zinc-200">
+                                            <td className="px-4 py-6">
+                                                <div className="flex items-center gap-4">
+                                                    <span className="text-sm uppercase tracking-wider text-zinc-500">Total Atual</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-6 text-center text-black">
+                                                {fCurrency(totais.faturamentoExibicao)}
+                                            </td>
+                                            <td className="px-4 py-6 text-center">
+                                                <span className="text-sm text-black">
+                                                    -
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-6 text-right text-black">
+                                                {totais.cubagem.toFixed(2)}m³
+                                            </td>
+                                        </tr>
                                     )}
                                 </tbody>
                             </table>
@@ -242,14 +263,14 @@ export function ModalDetalhes({
                         <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
                         <div className="space-y-1">
                             <p className="text-xs leading-relaxed max-w-md">
-                                {isPlanejamento 
+                                {isPlanejamento
                                     ? "Projeção limitada ao teto de capacidade física. O faturamento foi recalculado proporcionalmente para refletir o carregamento máximo permitido."
                                     : "Valores consolidados em base real. A eficiência reflete o custo logístico direto sobre o faturamento líquido faturado."}
                             </p>
                         </div>
                     </div>
-                    <button 
-                        onClick={onClose} 
+                    <button
+                        onClick={onClose}
                         className="w-full md:w-auto bg-black text-white px-12 py-4 text-sm font-semibold hover:bg-zinc-800 transition-all active:scale-[0.98]"
                     >
                         Concluir e fechar
