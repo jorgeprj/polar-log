@@ -70,8 +70,7 @@ export default function CardCarregamento({
     const isCancelado = carregamento.status === 'cancelado';
     const isFinalizado = isColetado || isCancelado;
     const canMove = isDraggable && !isFinalizado;
-    
-    const showCTEMessage = isColetado && info.percentual === 0;
+    const showCTEMessage = isColetado && info.fatLiq === 0;
 
     const statusConfig: any = {
         confirmado: { border: 'border-l-emerald-500', dot: 'bg-emerald-500', label: 'Confirmado' },
@@ -91,8 +90,8 @@ export default function CardCarregamento({
                     group relative flex flex-col p-3 mb-2 border border-zinc-200 border-l-[4px]
                     ${style.border} ${isColetado ? 'bg-zinc-50/50' : 'bg-white'} 
                     ${isCancelado ? 'opacity-50 cursor-not-allowed' : 'shadow-sm'}
-                    ${canMove ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
-                    ${!isAdmin && !authLoading ? 'cursor-default' : 'hover:border-zinc-300 hover:shadow-md'}
+                    ${canMove ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
+                    ${!isAdmin && !authLoading ? 'cursor-pointer' : 'hover:border-zinc-300 hover:shadow-md'}
                     rounded-r-lg min-h-[145px] transition-all duration-200 
                     ${isDragging ? 'shadow-2xl ring-2 ring-black/5' : ''}
                 `}
