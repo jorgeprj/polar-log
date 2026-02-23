@@ -152,7 +152,7 @@ function FooterStatus({ info, isColetado, isOverloaded }: any) {
         );
     }
 
-    if (info.cubagem <= 0) {
+    if (info.cubagem <= 0 && isColetado) {
         return (
             <div className="flex items-center gap-2 py-1 text-red-600">
                 <Truck size={12} />
