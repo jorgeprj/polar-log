@@ -1,14 +1,15 @@
 'use client';
 
-import { createClient } from '@/lib/supabase/client';
 import {
     LayoutDashboard, Truck, MapPin, BarChart3,
-    Settings, LogOut, ChevronLeft, ChevronRight, Lock, Loader2
+    Settings, LogOut, ChevronLeft, ChevronRight, Lock, Loader2,
+    BookText
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
     isCollapsed: boolean;
@@ -19,35 +20,8 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
     const supabase = createClient();
-
-    const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
-    const [isLoadingUser, setIsLoadingUser] = useState(true); // Novo estado de loading
-
-    useEffect(() => {
-        async function getUserData() {
-            try {
-                const { data: { user: authUser } } = await supabase.auth.getUser();
-                if (authUser) {
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('full_name, role')
-                        .eq('id', authUser.id)
-                        .single();
-
-                    setUser({
-                        name: profile?.full_name || 'Operador',
-                        email: authUser.email || '',
-                        role: profile?.role || 'padrao'
-                    });
-                }
-            } catch (error) {
-                console.error("Erro ao carregar perfil:", error);
-            } finally {
-                setIsLoadingUser(false); // Desativa o spinner independente do resultado
-            }
-        }
-        getUserData();
-    }, [supabase]);
+    
+    const { user, role, isLoading: isLoadingUser } = useAuth();
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -57,6 +31,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', href: '/', adminOnly: false },
+        { icon: BookText, label: 'Padrão de Op. Logística', href: '/pol', adminOnly: false },
         { icon: MapPin, label: 'Mapa', href: '/brasil', adminOnly: true },
         { icon: Truck, label: 'Carregamentos', href: '/carregamentos', adminOnly: true },
         { icon: BarChart3, label: 'Custos & BI', href: '/custos', adminOnly: true },
@@ -91,7 +66,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
                 </div>
             </div>
 
-            {/* Perfil do Usuário com Skeleton/Spinner */}
+            {/* Perfil do Usuário - Agora usando Contexto */}
             <div className={`px-4 mb-6 transition-all duration-500 ${isCollapsed ? 'opacity-0 translate-y-4 pointer-events-none' : 'opacity-100'}`}>
                 <div className="bg-zinc-50 p-4 rounded-none border-l-4 border-black min-h-[92px] flex flex-col justify-center">
                     {isLoadingUser ? (
@@ -102,10 +77,12 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
                     ) : (
                         <>
                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Autenticado como</p>
-                            <p className="text-sm font-black truncate text-black uppercase tracking-tighter">{user?.name}</p>
+                            <p className="text-sm font-black truncate text-black uppercase tracking-tighter">
+                                {user?.user_metadata?.full_name || 'Operador'}
+                            </p>
                             <p className="text-[10px] font-medium truncate text-zinc-500 lowercase">{user?.email}</p>
                             <div className="mt-2 inline-flex items-center bg-black text-white text-[8px] px-2 py-0.5 font-black uppercase tracking-widest w-fit">
-                                {user?.role}
+                                {role}
                             </div>
                         </>
                     )}
@@ -115,7 +92,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
             {/* Navigation */}
             <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
                 {menuItems.map((item) => {
-                    const isLocked = item.adminOnly && user?.role !== 'admin';
+                    const isLocked = item.adminOnly && role !== 'admin';
                     const isActive = pathname === item.href;
 
                     const content = (

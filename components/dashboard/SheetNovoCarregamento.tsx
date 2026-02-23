@@ -6,15 +6,16 @@ import {
 } from "@/components/ui/sheet"
 import { Plus, Info, Calendar, Truck, MapPin, Loader2, Lock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useRole } from '@/hooks/auth/useRole'
-import { toast } from "sonner" // Ou o seu sistema de toast favorito
+import { toast } from "sonner"
+import { useAuth } from '@/contexts/AuthContext'
 
 export function SheetNovoCarregamento({ onSucess }: { onSucess: () => void }) {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const supabase = createClient()
-    const {role} = useRole()
-
+    
+    // Consumindo dados instantâneos do contexto global
+    const { role, isLoading: authLoading } = useAuth()
     const isAdmin = role === 'admin'
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -63,22 +64,27 @@ export function SheetNovoCarregamento({ onSucess }: { onSucess: () => void }) {
     }
 
     return (
-        <Sheet open={open} onOpenChange={isAdmin ? setOpen : undefined}>
+        // O Sheet agora bloqueia a abertura se não for admin ou se ainda estiver carregando a auth
+        <Sheet open={open} onOpenChange={(val) => {
+            if (isAdmin) setOpen(val)
+        }}>
             <SheetTrigger asChild>
                 <button 
-                    disabled={!isAdmin}
+                    disabled={!isAdmin || authLoading}
                     className={`flex items-center gap-2 px-5 py-2.5 text-[12px] font-bold uppercase tracking-tight transition-all
                         ${isAdmin 
-                            ? 'bg-black text-white hover:bg-zinc-800 active:scale-95' 
+                            ? 'bg-black text-white hover:bg-zinc-800 active:scale-95 shadow-lg' 
                             : 'bg-zinc-100 text-zinc-400 cursor-not-allowed opacity-70 border border-zinc-300'
                         }`}
                 >
-                    {isAdmin ? (
+                    {authLoading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                    ) : isAdmin ? (
                         <Plus size={16} strokeWidth={3} />
                     ) : (
                         <Lock size={14} className="text-zinc-400" />
                     )}
-                    Novo Carregamento
+                    {authLoading ? 'Validando...' : 'Novo Carregamento'}
                 </button>
             </SheetTrigger>
             

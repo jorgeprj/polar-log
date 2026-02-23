@@ -1,85 +1,57 @@
 'use client';
 
-import { useState } from 'react';
-import { MapPin, AlertTriangle, GripVertical, FileSearch, Lock, Truck } from 'lucide-react'; // Adicionado Lock
+import { useState, useMemo } from 'react';
+import { MapPin, AlertTriangle, GripVertical, FileSearch, Lock, Truck, Loader2 } from 'lucide-react';
 import { ModalDetalhes } from './ModalDetalhes';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { useRole } from "@/hooks/auth/useRole"; // Importando o hook de permissão
+import { useAuth } from '@/contexts/AuthContext';
+
 
 interface CardProps {
     carregamento?: any;
-    info?: {
-        cubagem: number;
-        capacidade: number;
-        percentual: number;
-        fatLiq?: number;
-        custoLiq?: number;
-    };
+    info?: { cubagem: number; capacidade: number; percentual: number; fatLiq?: number; custoLiq?: number; };
     cargasPendentes: any[];
     isLoading?: boolean;
     isDraggable?: boolean;
 }
 
-export default function CardCarregamento({
-    carregamento,
-    info,
-    cargasPendentes,
-    isLoading,
-    isDraggable = true,
-}: CardProps) {
-    const [isModalOpen, setIsModalOpen] = useState(false);
+const STATUS_MAP: Record<string, any> = {
+    confirmado: { border: 'border-l-emerald-500', dot: 'bg-emerald-500', label: 'Confirmado', pulse: true },
+    previsto: { border: 'border-l-zinc-900', dot: 'bg-zinc-300', label: 'Agendado' },
+    coletado: { border: 'border-l-blue-600', dot: 'bg-blue-600', label: 'Realizado' },
+    cancelado: { border: 'border-l-zinc-300', dot: 'bg-zinc-200', label: 'Cancelado' }
+};
 
-    // VALIDACÃO DE PERMISSÃO
-    const { role, isLoading: authLoading } = useRole();
+export default function CardCarregamento({ carregamento, info, cargasPendentes, isLoading, isDraggable = true }: CardProps) {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    
+    const { role, isLoading: authLoading } = useAuth();
     const isAdmin = role === 'admin';
 
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        isDragging
-    } = useDraggable({
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: carregamento?.id || 'skeleton',
         disabled: isLoading || carregamento?.status === 'cancelado' || !isDraggable
     });
 
-    const styleDraggable = {
+    const styleDraggable = useMemo(() => ({
         transform: CSS.Translate.toString(transform),
         opacity: isDragging ? 0.4 : 1,
         zIndex: isDragging ? 50 : 1,
-    };
+    }), [transform, isDragging]);
 
-    if (isLoading) {
-        return (
-            <div className="flex flex-col p-3 mb-2 border border-zinc-200 border-l-[4px] border-l-zinc-100 bg-white rounded-r-lg min-h-[140px] animate-pulse">
-                <div className="h-2 w-16 bg-zinc-100 rounded mb-4" />
-                <div className="flex-1 space-y-3">
-                    <div className="h-4 w-3/4 bg-zinc-100 rounded" />
-                    <div className="h-2 w-1/2 bg-zinc-50 rounded" />
-                </div>
-            </div>
-        );
-    }
-
+    if (isLoading) return <SkeletonCard />;
     if (!carregamento || !info) return null;
 
+    const { status, transportadora, estado_destino, perfil, estados_atendidos, id } = carregamento;
     const isOverloaded = info.percentual > 100;
-    const isColetado = carregamento.status === 'coletado';
-    const isCancelado = carregamento.status === 'cancelado';
-    const isFinalizado = isColetado || isCancelado;
-    const canMove = isDraggable && !isFinalizado;
-    const showCTEMessage = isColetado && info.fatLiq === 0;
+    const isFinalizado = ['coletado', 'cancelado'].includes(status);
+    const config = STATUS_MAP[status] || STATUS_MAP.previsto;
 
-    const statusConfig: any = {
-        confirmado: { border: 'border-l-emerald-500', dot: 'bg-emerald-500', label: 'Confirmado' },
-        previsto: { border: 'border-l-zinc-900', dot: 'bg-zinc-300', label: 'Agendado' },
-        coletado: { border: 'border-l-blue-600', dot: 'bg-blue-600', label: 'Realizado' },
-        cancelado: { border: 'border-l-zinc-300', dot: 'bg-zinc-200', label: 'Cancelado' }
+    const handleCardClick = (e: React.MouseEvent) => {
+        if (isDragging || authLoading) return;
+        if (isAdmin) setIsModalOpen(true);
     };
-
-    const style = statusConfig[carregamento.status] || statusConfig.previsto;
 
     return (
         <>
@@ -87,128 +59,132 @@ export default function CardCarregamento({
                 ref={setNodeRef}
                 style={styleDraggable}
                 className={`
-                    group relative flex flex-col p-3 mb-2 border border-zinc-200 border-l-[4px]
-                    ${style.border} ${isColetado ? 'bg-zinc-50/50' : 'bg-white'} 
-                    ${isCancelado ? 'opacity-50 cursor-not-allowed' : 'shadow-sm'}
-                    ${canMove ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
-                    ${!isAdmin && !authLoading ? 'cursor-pointer' : 'hover:border-zinc-300 hover:shadow-md'}
-                    rounded-r-lg min-h-[145px] transition-all duration-200 
+                    group relative flex flex-col p-3 mb-2 border border-zinc-200 border-l-[4px] rounded-r-lg min-h-[145px] transition-all duration-200
+                    ${config.border} ${status === 'coletado' ? 'bg-zinc-50/50' : 'bg-white'} 
+                    ${status === 'cancelado' ? 'opacity-50' : 'shadow-sm hover:border-zinc-300 hover:shadow-md'}
+                    ${authLoading ? 'cursor-wait' : (isAdmin && !isFinalizado ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer')}
                     ${isDragging ? 'shadow-2xl ring-2 ring-black/5' : ''}
                 `}
-                {...(canMove ? listeners : {})}
-                {...(canMove ? attributes : {})}
-                onClick={() => {
-                    // SÓ ABRE O MODAL SE FOR ADMIN E NÃO ESTIVER CARREGANDO A ROLE
-                    if (!isDragging && isAdmin && !authLoading) {
-                        setIsModalOpen(true);
-                    }
-                }}
+                {...(!isFinalizado && isDraggable ? { ...listeners, ...attributes } : {})}
+                onClick={handleCardClick}
             >
-                {/* ÍCONE DE CADEADO PARA NÃO-ADMINS (OPCIONAL) */}
+                {/* Feedback discreto apenas no primeiro load da página */}
+                {authLoading && (
+                    <div className="absolute top-2 right-2 animate-spin text-zinc-300">
+                        <Loader2 size={12} />
+                    </div>
+                )}
+
                 {!isAdmin && !authLoading && (
-                    <div className="absolute top-2 right-2 opacity-20">
+                    <div className="absolute top-2 right-2 text-zinc-300">
                         <Lock size={12} />
                     </div>
                 )}
-
+                
                 {!isFinalizado && isDraggable && (
-                    <div className="absolute top-1/2 -right-1 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <GripVertical size={14} className="text-zinc-300" />
-                    </div>
+                    <GripVertical size={14} className="absolute top-1/2 -right-1 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-zinc-300 transition-opacity" />
                 )}
 
-                <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2">
-                        <div className={`w-1.5 h-1.5 rounded-full ${style.dot} ${carregamento.status === 'confirmado' ? 'animate-pulse' : ''}`} />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{style.label}</span>
-                    </div>
-                    {isOverloaded && !isFinalizado && (
-                        <div className="text-red-600 font-black text-[9px] animate-pulse flex items-center gap-1">
-                            <AlertTriangle size={10} /> EXCESSO
-                        </div>
-                    )}
-                </div>
+                <HeaderSection config={config} isOverloaded={isOverloaded} isFinalizado={isFinalizado} />
 
                 <div className="flex-1 mb-2">
                     <h4 className="text-[13px] font-bold text-zinc-900 leading-tight uppercase truncate tracking-tighter">
-                        {carregamento.transportadora || 'Frota Própria'}
+                        {transportadora || 'Frota Própria'}
                     </h4>
                     <div className="flex items-center gap-1 mt-0.5 text-zinc-500">
                         <MapPin size={10} className="shrink-0" />
-                        <span className="text-[10px] font-medium uppercase truncate">
-                            {carregamento.estado_destino} | {carregamento.perfil}
-                        </span>
+                        <span className="text-[10px] font-medium uppercase truncate">{estado_destino} | {perfil}</span>
                     </div>
 
                     <div className="flex flex-wrap gap-1 mt-2">
-                        {carregamento.estados_atendidos?.map((uf: string) => (
-                            <span key={uf} className="text-[8px] font-black bg-white text-zinc-500 px-1 py-0.5 rounded border border-zinc-200 uppercase">
-                                {uf}
-                            </span>
+                        {estados_atendidos?.map((uf: string) => (
+                            <span key={uf} className="text-[8px] font-black bg-white text-zinc-500 px-1 py-0.5 rounded border border-zinc-200 uppercase">{uf}</span>
                         ))}
                     </div>
                 </div>
 
                 <div className="mt-auto pt-2 border-t border-zinc-100">
-                    {showCTEMessage ? (
-                        <div className="flex items-center gap-2 py-1">
-                            <FileSearch size={12} className="text-amber-500" />
-                            <span className="text-[9px] font-black text-amber-600 uppercase italic tracking-tighter">
-                                CTEs ainda não disponibilizados
-                            </span>
-                        </div>
-                    ) : info.cubagem > 0 ? (
-                        <div className="space-y-1.5">
-                            <div className="flex justify-between items-end text-[11px] font-black">
-                                <span className="text-[9px] text-zinc-400 uppercase tracking-tighter">
-                                    Ocupação
-                                </span>
-                                <span className={isOverloaded ? "text-red-600" : "text-zinc-900"}>
-                                    {info.percentual.toFixed(0)}%
-                                </span>
-                            </div>
-
-                            <div className="w-full bg-zinc-100 h-1 rounded-full overflow-hidden">
-                                <div
-                                    className={`h-full transition-all duration-700 ${isOverloaded ? "bg-red-600" : "bg-black"
-                                        }`}
-                                    style={{ width: `${Math.min(info.percentual, 100)}%` }}
-                                />
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 py-1">
-                            <Truck size={12} className="text-red-500" />
-                            <span className="text-[9px] font-black text-red-600 uppercase italic tracking-tighter">
-                                Carga Batida
-                            </span>
-                        </div>
-                    )}
+                    <FooterStatus info={info} isColetado={status === 'coletado'} isOverloaded={isOverloaded} />
                 </div>
 
-                {isCancelado && (
-                    <div className="absolute inset-0 bg-white/60 flex items-center justify-center rounded-r-lg z-10">
-                        <span className="text-[9px] font-black text-zinc-400 border border-zinc-200 px-2 py-0.5 bg-white uppercase tracking-widest">
-                            Cancelado
-                        </span>
+                {status === 'cancelado' && (
+                    <div className="absolute inset-0 bg-white/40 flex items-center justify-center rounded-r-lg z-10 backdrop-blur-[1px]">
+                        <span className="text-[9px] font-black text-zinc-500 border border-zinc-200 px-2 py-0.5 bg-white uppercase tracking-widest shadow-sm">Cancelado</span>
                     </div>
                 )}
             </div>
 
-            {/* SÓ RENDERIZA O COMPONENTE DO MODAL SE PASSAR NA VALIDAÇÃO */}
-            {isModalOpen && isAdmin && carregamento && (
+            {isModalOpen && isAdmin && (
                 <ModalDetalhes
-                    id={carregamento.id}
-                    status={carregamento.status}
-                    estadosAtendidos={carregamento.estados_atendidos || []}
-                    cargasPendentes={cargasPendentes}
-                    capacidadeVeiculo={info.capacidade}
-                    isOpen={isModalOpen}
-                    onClose={() => setIsModalOpen(false)}
-                    transitPointId={carregamento.transit_point_id}
-                    perfil={carregamento.perfil}
+                    id={id} status={status} transitPointId={carregamento.transit_point_id} perfil={perfil}
+                    estadosAtendidos={estados_atendidos || []} cargasPendentes={cargasPendentes}
+                    capacidadeVeiculo={info.capacidade} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}
                 />
             )}
         </>
+    );
+}
+
+// Sub-componentes auxiliares
+function HeaderSection({ config, isOverloaded, isFinalizado }: any) {
+    return (
+        <div className="flex justify-between items-start mb-2">
+            <div className="flex items-center gap-2">
+                <div className={`w-1.5 h-1.5 rounded-full ${config.dot} ${config.pulse && !isFinalizado ? 'animate-pulse' : ''}`} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{config.label}</span>
+            </div>
+            {isOverloaded && !isFinalizado && (
+                <div className="text-red-600 font-black text-[9px] animate-pulse flex items-center gap-1">
+                    <AlertTriangle size={10} /> EXCESSO
+                </div>
+            )}
+        </div>
+    );
+}
+
+function FooterStatus({ info, isColetado, isOverloaded }: any) {
+    if (isColetado && info.fatLiq === 0) {
+        return (
+            <div className="flex items-center gap-2 py-1 text-amber-600">
+                <FileSearch size={12} />
+                <span className="text-[9px] font-black uppercase italic tracking-tighter">CTEs não disponibilizados</span>
+            </div>
+        );
+    }
+
+    if (info.cubagem <= 0) {
+        return (
+            <div className="flex items-center gap-2 py-1 text-red-600">
+                <Truck size={12} />
+                <span className="text-[9px] font-black uppercase italic tracking-tighter">Carga Batida</span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-1.5">
+            <div className="flex justify-between items-end text-[11px] font-black">
+                <span className="text-[9px] text-zinc-400 uppercase tracking-tighter">Ocupação</span>
+                <span className={isOverloaded ? "text-red-600" : "text-zinc-900"}>{info.percentual.toFixed(0)}%</span>
+            </div>
+            <div className="w-full bg-zinc-100 h-1 rounded-full overflow-hidden">
+                <div 
+                    className={`h-full transition-all duration-700 ${isOverloaded ? "bg-red-600" : "bg-black"}`} 
+                    style={{ width: `${Math.min(info.percentual, 100)}%` }} 
+                />
+            </div>
+        </div>
+    );
+}
+
+function SkeletonCard() {
+    return (
+        <div className="flex flex-col p-3 mb-2 border border-zinc-200 border-l-[4px] border-l-zinc-100 bg-white rounded-r-lg min-h-[140px] animate-pulse">
+            <div className="h-2 w-16 bg-zinc-100 rounded mb-4" />
+            <div className="flex-1 space-y-3">
+                <div className="h-4 w-3/4 bg-zinc-100 rounded" />
+                <div className="h-2 w-1/2 bg-zinc-50 rounded" />
+            </div>
+        </div>
     );
 }

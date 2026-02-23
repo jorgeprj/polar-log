@@ -7,16 +7,10 @@ import {
     addMonths, subMonths, isSameMonth, parseISO
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Filter, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import {
-    DndContext,
-    DragEndEvent,
-    DragStartEvent,
-    DragOverlay,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    rectIntersection,
+    DndContext, DragEndEvent, DragStartEvent, DragOverlay,
+    PointerSensor, useSensor, useSensors, rectIntersection,
     defaultDropAnimationSideEffects
 } from '@dnd-kit/core';
 import { toast, Toaster } from 'sonner';
@@ -27,14 +21,9 @@ import CardCarregamento from '@/components/dashboard/CardCarregamento';
 import { SheetNovoCarregamento } from '@/components/dashboard/SheetNovoCarregamento';
 import { createClient } from '@/lib/supabase/client';
 import { DayCell } from '@/components/dashboard/DayCell';
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
-import { useRole } from '@/hooks/auth/useRole';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useAuth } from '@/contexts/AuthContext';
 
-// Lista de estados para o filtro
 const ESTADOS_BR = [
     'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 
     'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 
@@ -45,7 +34,9 @@ export default function Dashboard() {
     const [currentDate, setCurrentDate] = useState<Date | null>(null);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [selectedStates, setSelectedStates] = useState<string[]>([]);
-    const { role, isLoading: authLoading } = useRole();
+    
+    // Pegando role e loading do contexto global para máxima performance
+    const { role, isLoading: authLoading } = useAuth();
     const isAdmin = role === 'admin';
     
     const supabase = createClient();
@@ -57,39 +48,34 @@ export default function Dashboard() {
 
     useEffect(() => { setCurrentDate(new Date()); }, []);
 
-    // Lógica de Filtragem
     const carregamentosFiltrados = useMemo(() => {
         if (selectedStates.length === 0) return carregamentos;
-        
-        return carregamentos.filter(c => {
-            const atendidos = c.estados_atendidos || [];
-            const destino = c.estado_destino;
-            // Verifica se o destino ou algum estado atendido está na lista de filtros
-            return selectedStates.includes(destino) || atendidos.some((uf: string) => selectedStates.includes(uf));
-        });
+        return carregamentos.filter(c => 
+            selectedStates.includes(c.estado_destino) || 
+            (c.estados_atendidos || []).some((uf: string) => selectedStates.includes(uf))
+        );
     }, [carregamentos, selectedStates]);
-
-    const handleDragStart = (event: DragStartEvent) => {
-        setActiveId(event.active.id as string);
-    };
 
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
         setActiveId(null);
 
         if (over && active.id !== over.id) {
+            // Se não for admin ou ainda estiver carregando a auth, bloqueia
+            if (!isAdmin || authLoading) {
+                return toast.error('Operação não permitida', {
+                    description: 'Apenas administradores podem redefinir datas.'
+                });
+            }
+
             const { error } = await supabase
                 .from('carregamentos')
                 .update({ data_carregamento: over.id as string })
                 .eq('id', active.id);
 
             if (!error) {
-                if (isAdmin) {
-                    toast.success('Agendamento atualizado');
-                    refresh();
-                } else {
-                    toast.error('Você não tem permissão para atualizar o agendamento');
-                }
+                toast.success('Agendamento atualizado');
+                refresh();
             } else {
                 toast.error('Erro ao atualizar agendamento');
             }
@@ -122,7 +108,11 @@ export default function Dashboard() {
 
             <DndContext
                 sensors={sensors}
-                onDragStart={handleDragStart}
+                onDragStart={(e) => {
+                    // Impede o início do drag se não for admin
+                    if (!isAdmin) return;
+                    setActiveId(e.active.id as string);
+                }}
                 onDragEnd={handleDragEnd}
                 collisionDetection={rectIntersection}
             >
@@ -136,7 +126,6 @@ export default function Dashboard() {
                     <div className="grid grid-cols-7 auto-rows-fr min-h-[700px]">
                         {days.map((day, idx) => {
                             const dateKey = format(day, 'yyyy-MM-dd');
-                            // Usar a lista filtrada aqui
                             const noDia = carregamentosFiltrados.filter(c => isSameDay(parseISO(c.data_carregamento), day));
 
                             return (
@@ -155,7 +144,8 @@ export default function Dashboard() {
                                                 carregamento={c}
                                                 info={getOcupacaoInfo(c)}
                                                 cargasPendentes={cargasPendentes}
-                                                isDraggable={true}
+                                                // Só permite o visual de "arrastável" se for admin
+                                                isDraggable={isAdmin}
                                             />
                                         </div>
                                     ))}
@@ -167,13 +157,10 @@ export default function Dashboard() {
 
                 <DragOverlay dropAnimation={{
                     duration: 300,
-                    easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-                    sideEffects: defaultDropAnimationSideEffects({
-                        styles: { active: { opacity: '0.4' } }
-                    })
+                    sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } })
                 }}>
-                    {activeId && activeCarregamento ? (
-                        <div className="cursor-grabbing rotate-2 scale-105 transition-transform shadow-2xl">
+                    {activeCarregamento && isAdmin && (
+                        <div className="cursor-grabbing rotate-2 scale-105 shadow-2xl">
                             <CardCarregamento
                                 carregamento={activeCarregamento}
                                 info={getOcupacaoInfo(activeCarregamento)}
@@ -181,21 +168,26 @@ export default function Dashboard() {
                                 isDraggable={true}
                             />
                         </div>
-                    ) : null}
+                    )}
                 </DragOverlay>
             </DndContext>
         </MainLayout>
     );
 }
 
-function HeaderActions({ currentDate, setCurrentDate, refresh, selectedStates, setSelectedStates }: any) {
-    const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
-    const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
+// ... Resto do componente HeaderActions permanece o mesmo ...
 
+interface HeaderActionsProps {
+    currentDate: Date;
+    setCurrentDate: (d: Date) => void;
+    refresh: () => void;
+    selectedStates: string[];
+    setSelectedStates: React.Dispatch<React.SetStateAction<string[]>>;
+}
+
+function HeaderActions({ currentDate, setCurrentDate, refresh, selectedStates, setSelectedStates }: HeaderActionsProps) {
     const toggleState = (uf: string) => {
-        setSelectedStates((prev: string[]) => 
-            prev.includes(uf) ? prev.filter(s => s !== uf) : [...prev, uf]
-        );
+        setSelectedStates(prev => prev.includes(uf) ? prev.filter(s => s !== uf) : [...prev, uf]);
     };
     
     return (
@@ -206,16 +198,15 @@ function HeaderActions({ currentDate, setCurrentDate, refresh, selectedStates, s
                     <span className="ml-2 not-italic font-light text-zinc-400">{format(currentDate, 'yyyy')}</span>
                 </h3>
                 <div className="flex items-center border border-zinc-200 divide-x divide-zinc-200 bg-white shadow-sm">
-                    <button onClick={prevMonth} className="p-2 hover:bg-zinc-100 transition-colors"><ChevronLeft size={16} /></button>
-                    <button onClick={nextMonth} className="p-2 hover:bg-zinc-100 transition-colors"><ChevronRight size={16} /></button>
+                    <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-zinc-100 transition-colors"><ChevronLeft size={16} /></button>
+                    <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-zinc-100 transition-colors"><ChevronRight size={16} /></button>
                 </div>
             </div>
 
             <div className="flex items-center gap-2">
-                {/* FILTRO DE ESTADOS */}
                 <Popover>
                     <PopoverTrigger asChild>
-                        <button className={`flex items-center gap-2 px-5 py-2.5 text-[12px] border  font-black uppercase tracking-widest transition-all ${selectedStates.length > 0 ? 'bg-black text-white border-black' : 'bg-white text-zinc-900 border-zinc-200 hover:bg-zinc-50'}`}>
+                        <button className={`flex items-center gap-2 px-5 py-2.5 text-[12px] border font-black uppercase tracking-widest transition-all ${selectedStates.length > 0 ? 'bg-black text-white border-black' : 'bg-white text-zinc-900 border-zinc-200 hover:bg-zinc-50'}`}>
                             <Filter size={14} /> 
                             {selectedStates.length > 0 ? `Estados (${selectedStates.length})` : 'Filtros'}
                         </button>
@@ -224,31 +215,22 @@ function HeaderActions({ currentDate, setCurrentDate, refresh, selectedStates, s
                         <div className="flex justify-between items-center mb-4">
                             <span className="text-[10px] font-black uppercase tracking-[0.2em]">Filtrar por UF</span>
                             {selectedStates.length > 0 && (
-                                <button 
-                                    onClick={() => setSelectedStates([])}
-                                    className="text-[9px] font-black text-red-500 uppercase hover:underline"
-                                >
-                                    Limpar
-                                </button>
+                                <button onClick={() => setSelectedStates([])} className="text-[9px] font-black text-red-500 uppercase hover:underline">Limpar</button>
                             )}
                         </div>
                         <div className="grid grid-cols-5 gap-2">
-                            {ESTADOS_BR.map(uf => {
-                                const active = selectedStates.includes(uf);
-                                return (
-                                    <button
-                                        key={uf}
-                                        onClick={() => toggleState(uf)}
-                                        className={`h-8 flex items-center justify-center text-[10px] font-bold border transition-all ${active ? 'bg-black text-white border-black' : 'bg-white text-zinc-400 border-zinc-100 hover:border-zinc-300'}`}
-                                    >
-                                        {uf}
-                                    </button>
-                                );
-                            })}
+                            {ESTADOS_BR.map(uf => (
+                                <button
+                                    key={uf}
+                                    onClick={() => toggleState(uf)}
+                                    className={`h-8 flex items-center justify-center text-[10px] font-bold border transition-all ${selectedStates.includes(uf) ? 'bg-black text-white border-black' : 'bg-white text-zinc-400 border-zinc-100 hover:border-zinc-300'}`}
+                                >
+                                    {uf}
+                                </button>
+                            ))}
                         </div>
                     </PopoverContent>
                 </Popover>
-
                 <SheetNovoCarregamento onSucess={refresh} />
             </div>
         </div>

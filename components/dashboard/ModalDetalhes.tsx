@@ -104,7 +104,7 @@ export function ModalDetalhes({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[1000px] p-0 border-none bg-[#F6F6F6] shadow-2xl overflow-hidden font-sans">
+            <DialogContent className="sm:max-w-[1000px] p-0 border-none bg-[#F6F6F6] shadow-2xl overflow-hidden font-sans max-h-[90vh] overflow-y-auto  custom-scrollbar">
                 {/* Header Estilo Uber: Limpo e Directo */}
                 <DialogHeader className="p-8 bg-black text-white">
                     <div className="flex justify-between items-center">
