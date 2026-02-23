@@ -12,7 +12,9 @@ import {
     Users,
     Info,
     LifeBuoy,
-    User
+    User,
+    Watch,
+    Timer
 } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { createClient } from '@/lib/supabase/client';
@@ -37,6 +39,7 @@ interface TransitPoint {
     id: number;
     local: string;
     estados_atendidos: string[];
+    frequency: string;
 }
 
 export default function PaginaPOL() {
@@ -198,6 +201,7 @@ export default function PaginaPOL() {
                                         <tr>
                                             <th className="px-6 py-4">Localidade</th>
                                             <th className="px-6 py-4">Estados Atendidos</th>
+                                            <th className="px-6 py-4">Frequência</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-zinc-100">
@@ -217,6 +221,12 @@ export default function PaginaPOL() {
                                                             </span>
                                                         ))}
                                                     </div>
+                                                </td>
+                                                <td className="px-6 py-4 flex items-center gap-2">
+                                                    <Timer size={14} className="text-zinc-400" />
+                                                    <span className="px-2 py-0.5 bg-zinc-100 text-xs font-bold rounded">
+                                                        {tp.frequency || 'Sem informação'}
+                                                    </span>
                                                 </td>
                                             </tr>
                                         ))}
