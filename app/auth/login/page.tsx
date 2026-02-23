@@ -55,10 +55,10 @@ export default function LoginPage() {
                         </span>
                     </div>
 
-                    <h1 className="text-6xl font-black text-white leading-[1.1] tracking-tighter max-w-xl">
+                    <h1 className="text-6xl font-black text-white leading-[1.1] tracking-tighter max-w-xl uppercase">
                         GESTÃO E <br />
-                        <span className="italic text-zinc-500 underline decoration-zinc-800">VISIBILIDADE</span> <br />
-                        DE TRANSPORTE <br />
+                        <span className="italic text-zinc-500 underline decoration-zinc-800">Planejamento</span> <br />
+                        Logístico <br />
                     </h1>
                 </div>
 
