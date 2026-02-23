@@ -2,12 +2,11 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { X, AlertCircle, BarChart3, Globe, ArrowRight, Truck, Loader2 } from "lucide-react";
+import { X, AlertCircle, BarChart3, Globe, ArrowRight, Truck, Loader2, Package } from "lucide-react";
 import { useEstadoMetrics } from "@/hooks/useEstadoMetrics";
 import MainLayout from '@/components/layout/MainLayout';
 import { usePathname } from 'next/navigation';
 
-// Carregamento dinâmico do mapa para evitar erros de "appendChild" e SSR
 const MapaBrasil = dynamic(() => import('@/components/maps/map'), {
     ssr: false,
     loading: () => <LoadingSpinner />
@@ -45,8 +44,8 @@ export default function MapaPerformance() {
         'AM', 'RR', 'AP', 'PA', 'TO', 'RO', 'AC', 'RJ', 'ES'
     ], []);
 
-    // Se o seu hook já foi atualizado para retornar o acumulado conforme conversamos:
-    const { data: metrics, loading } = useEstadoMetrics(selectedState);
+    const { data, loading } = useEstadoMetrics(selectedState);
+    const { resumo, carregamentos } = data;
 
     const handleStateClick = (uf: string, name: string) => {
         if (uf && estadosAtendidos.includes(uf)) {
@@ -72,7 +71,7 @@ export default function MapaPerformance() {
                             <h1 className="text-2xl font-bold tracking-tight text-black">Rede Brasil</h1>
                         </div>
 
-                        <div className="absolute inset-0 z-0" key={pathname}> {/* Container extra de segurança */}
+                        <div className="absolute inset-0 z-0" key={pathname}>
                             <MapaBrasil
                                 geojsonData={geojsonData}
                                 selectedState={selectedState}
@@ -90,18 +89,18 @@ export default function MapaPerformance() {
                     </section>
 
                     {/* PAINEL DE DADOS */}
-                    <section className="col-span-5 flex flex-col bg-white shadow-xl z-[60]">
+                    <section className="col-span-5 flex flex-col bg-white shadow-xl z-[60] overflow-hidden">
                         {!selectedState ? (
                             <EmptyState />
                         ) : (
                             <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-2 duration-400">
-                                <header className="p-8 bg-black text-white">
+                                <header className="p-8 bg-black text-white shrink-0">
                                     <div className="flex justify-between items-start mb-6">
                                         <div className="flex items-center gap-2">
                                             <div className="p-1.5 bg-white/10 rounded">
                                                 <BarChart3 size={16} />
                                             </div>
-                                            <span className="text-[11px] font-medium uppercase tracking-[1px] opacity-70">Performance Acumulada</span>
+                                            <span className="text-[11px] font-medium uppercase tracking-[1px] opacity-70">Performance Consolidada</span>
                                         </div>
                                         <button onClick={() => setSelectedState(null)} className="text-white/40 hover:text-white transition-colors">
                                             <X size={20} />
@@ -117,48 +116,83 @@ export default function MapaPerformance() {
                                     </div>
                                 </header>
 
-                                <div className="p-8 space-y-4 overflow-y-auto bg-[#F6F6F6] flex-1">
+                                <div className="flex-1 overflow-y-auto bg-[#F6F6F6]">
                                     {loading ? <LoadingSkeleton /> : (
-                                        <>
-                                            <div className="bg-white p-6 border border-zinc-200 shadow-sm">
-                                                <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400">Faturamento Bruto Total</span>
-                                                <div className="flex justify-between items-end mt-2">
-                                                    <p className="text-3xl font-semibold text-black tracking-tight">{fCurrency(metrics?.fat_bruto_total ?? 0)}</p>
-                                                    <div className="flex items-center gap-1 text-emerald-600 text-xs font-bold mb-1">
-                                                        <ArrowRight size={14} />
-                                                        <span>On Track</span>
+                                        <div className="p-8 space-y-6">
+                                            {/* CARDS DE RESUMO */}
+                                            <div className="space-y-4">
+                                                <div className="bg-white p-6 border border-zinc-200 shadow-sm">
+                                                    <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400">Faturamento Total do Estado</span>
+                                                    <div className="flex justify-between items-end mt-2">
+                                                        <p className="text-3xl font-semibold text-black tracking-tight">{fCurrency(resumo?.fat_bruto_total ?? 0)}</p>
+                                                        <div className="flex items-center gap-1 text-emerald-600 text-xs font-bold mb-1">
+                                                            <span>{resumo?.qtd_pdvs} PDVs</span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <UberStatCard
-                                                    label="Eficiência Média"
-                                                    value={`${((metrics?.custo_liq_vs_fat_liq ?? 0) * 100).toFixed(1)}%`}
-                                                    status={(metrics?.custo_liq_vs_fat_liq ?? 0) > 0.15 ? "danger" : "success"}
-                                                />
-                                                <UberStatCard
-                                                    label="Drop Size Médio"
-                                                    value={`${metrics?.drop_size?.toFixed(2) ?? '0.00'} m³`}
-                                                    subValue="Consolidado PDVs"
-                                                />
-                                            </div>
-                                            <div className="p-6 bg-white border border-zinc-200 mt-4 flex gap-4">
-                                                <div className="p-2 bg-zinc-100 h-fit rounded">
-                                                    <Truck size={18} className="text-black" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-bold text-black uppercase mb-1">Densidade de Carga</p>
-                                                    <p className="text-zinc-500 text-sm leading-relaxed">
-                                                        A regional opera com um faturamento médio de <span className="text-black font-semibold">{fCurrency(metrics?.real_m3_fat ?? 0)}/m³</span>.
-                                                    </p>
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <UberStatCard
+                                                        label="Eficiência Média"
+                                                        value={`${((resumo?.custo_liq_vs_fat_liq ?? 0) * 100).toFixed(1)}%`}
+                                                        status={(resumo?.custo_liq_vs_fat_liq ?? 0) > 0.15 ? "danger" : "success"}
+                                                    />
+                                                    <UberStatCard
+                                                        label="Volume Coletado"
+                                                        value={`${resumo?.cubagem_total?.toFixed(2) ?? '0.00'} m³`}
+                                                        subValue="Volume Total"
+                                                    />
                                                 </div>
                                             </div>
-                                        </>
+
+                                            {/* LISTAGEM DE CARREGAMENTOS */}
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Detalhamento por Carregamento</h3>
+                                                    <span className="text-[10px] bg-zinc-200 px-2 py-0.5 rounded font-bold">{carregamentos.length}</span>
+                                                </div>
+                                                
+                                                <div className="space-y-2">
+                                                    {carregamentos.map((item) => (
+                                                        <div key={item.carregamento_id} className="bg-white border border-zinc-200 p-4 hover:border-zinc-400 transition-colors group">
+                                                            <div className="flex justify-between items-start mb-3">
+                                                                <div>
+                                                                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight">ID Carregamento</p>
+                                                                    <p className="font-mono text-sm font-bold text-black">#{item.carregamento_id.toString().padStart(5, '0')}</p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight">Faturamento</p>
+                                                                    <p className="text-sm font-bold text-black">{fCurrency(item.fat_bruto_total)}</p>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-zinc-50">
+                                                                <div>
+                                                                    <p className="text-[9px] uppercase text-zinc-400 font-bold">Volume</p>
+                                                                    <p className="text-xs font-medium text-zinc-700">{item.cubagem_total.toFixed(2)} m³</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[9px] uppercase text-zinc-400 font-bold">R$/m³</p>
+                                                                    <p className="text-xs font-medium text-zinc-700">{fCurrency(item.real_m3_fat)}</p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="text-[9px] uppercase text-zinc-400 font-bold">Efficiency</p>
+                                                                    <p className={`text-xs font-bold ${item.custo_liq_vs_fat_liq > 0.15 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                                        {(item.custo_liq_vs_fat_liq * 100).toFixed(1)}%
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
-                                <footer className="p-6 bg-white border-t border-zinc-200">
-                                    <button className="w-full bg-black text-white py-4 text-sm font-semibold hover:bg-zinc-800 transition-all">
-                                        Ver Relatório Detalhado
+                                
+                                <footer className="p-6 bg-white border-t border-zinc-200 shrink-0">
+                                    <button className="w-full bg-black text-white py-4 text-sm font-semibold hover:bg-zinc-800 transition-all flex items-center justify-center gap-2">
+                                        Exportar Dados de {selectedState}
                                     </button>
                                 </footer>
                             </div>
@@ -166,6 +200,7 @@ export default function MapaPerformance() {
                     </section>
                 </div>
 
+                {/* TOAST DE ALERTA */}
                 {notServed && (
                     <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[2000] animate-in slide-in-from-bottom-2">
                         <div className="bg-zinc-900 text-white px-5 py-3 rounded shadow-2xl flex items-center gap-4">
@@ -182,7 +217,7 @@ export default function MapaPerformance() {
     );
 }
 
-// --- AUXILIARES ---
+// --- AUXILIARES (MANTIDOS) ---
 
 function LoadingSpinner() {
     return (
@@ -195,12 +230,13 @@ function LoadingSpinner() {
 
 function LoadingSkeleton() {
     return (
-        <div className="space-y-4">
-            <div className="h-24 w-full bg-white animate-pulse border border-zinc-100" />
+        <div className="p-8 space-y-4">
+            <div className="h-32 w-full bg-white animate-pulse border border-zinc-100" />
             <div className="grid grid-cols-2 gap-4">
                 <div className="h-24 bg-white animate-pulse border border-zinc-100" />
                 <div className="h-24 bg-white animate-pulse border border-zinc-100" />
             </div>
+            <div className="h-64 w-full bg-white animate-pulse border border-zinc-100" />
         </div>
     );
 }
@@ -232,7 +268,7 @@ function EmptyState() {
                 <Globe className="text-zinc-300" size={28} />
             </div>
             <h3 className="text-lg font-bold text-black uppercase tracking-tight mb-2">Selecione uma regional</h3>
-            <p className="text-zinc-400 text-xs max-w-[200px] leading-relaxed font-medium">Clique em um estado ativo para visualizar os KPIs de performance.</p>
+            <p className="text-zinc-400 text-xs max-w-[200px] leading-relaxed font-medium">Clique em um estado ativo para visualizar os KPIs e lista de carregamentos.</p>
         </div>
     );
 }
