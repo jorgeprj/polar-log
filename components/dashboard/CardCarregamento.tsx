@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MapPin, AlertTriangle, GripVertical, FileSearch, Lock } from 'lucide-react'; // Adicionado Lock
+import { MapPin, AlertTriangle, GripVertical, FileSearch, Lock, Truck } from 'lucide-react'; // Adicionado Lock
 import { ModalDetalhes } from './ModalDetalhes';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
@@ -29,7 +29,7 @@ export default function CardCarregamento({
     isDraggable = true,
 }: CardProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    
+
     // VALIDACÃO DE PERMISSÃO
     const { role, isLoading: authLoading } = useRole();
     const isAdmin = role === 'admin';
@@ -157,18 +157,31 @@ export default function CardCarregamento({
                                 CTEs ainda não disponibilizados
                             </span>
                         </div>
-                    ) : (
+                    ) : info.cubagem > 0 ? (
                         <div className="space-y-1.5">
                             <div className="flex justify-between items-end text-[11px] font-black">
-                                <span className="text-[9px] text-zinc-400 uppercase tracking-tighter">Ocupação</span>
-                                <span className={isOverloaded ? 'text-red-600' : 'text-zinc-900'}>{info.percentual.toFixed(0)}%</span>
+                                <span className="text-[9px] text-zinc-400 uppercase tracking-tighter">
+                                    Ocupação
+                                </span>
+                                <span className={isOverloaded ? "text-red-600" : "text-zinc-900"}>
+                                    {info.percentual.toFixed(0)}%
+                                </span>
                             </div>
+
                             <div className="w-full bg-zinc-100 h-1 rounded-full overflow-hidden">
                                 <div
-                                    className={`h-full transition-all duration-700 ${isOverloaded ? 'bg-red-600' : 'bg-black'}`}
+                                    className={`h-full transition-all duration-700 ${isOverloaded ? "bg-red-600" : "bg-black"
+                                        }`}
                                     style={{ width: `${Math.min(info.percentual, 100)}%` }}
                                 />
                             </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 py-1">
+                            <Truck size={12} className="text-red-500" />
+                            <span className="text-[9px] font-black text-red-600 uppercase italic tracking-tighter">
+                                Carga Batida
+                            </span>
                         </div>
                     )}
                 </div>
