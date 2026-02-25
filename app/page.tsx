@@ -7,7 +7,7 @@ import {
     addMonths, subMonths, isSameMonth, parseISO
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, History } from 'lucide-react'; // Adicionei History
 import {
     DndContext, DragEndEvent, DragStartEvent, DragOverlay,
     PointerSensor, useSensor, useSensors, rectIntersection,
@@ -35,7 +35,6 @@ export default function Dashboard() {
     const [activeId, setActiveId] = useState<string | null>(null);
     const [selectedStates, setSelectedStates] = useState<string[]>([]);
     
-    // Pegando role e loading do contexto global para máxima performance
     const { role, isLoading: authLoading } = useAuth();
     const isAdmin = role === 'admin';
     
@@ -61,16 +60,25 @@ export default function Dashboard() {
         setActiveId(null);
 
         if (over && active.id !== over.id) {
-            // Se não for admin ou ainda estiver carregando a auth, bloqueia
             if (!isAdmin || authLoading) {
                 return toast.error('Operação não permitida', {
                     description: 'Apenas administradores podem redefinir datas.'
                 });
             }
 
+            const itemArrastado = carregamentos.find(c => c.id === active.id);
+            const novaData = over.id as string;
+
+            // LÓGICA DE DATA PREVISTA:
+            // Se o item ainda não tem 'data_original', salvamos a data atual dele como a original antes de mudar.
+            const dataOriginalParaSalvar = itemArrastado?.data_original || itemArrastado?.data_carregamento;
+
             const { error } = await supabase
                 .from('carregamentos')
-                .update({ data_carregamento: over.id as string })
+                .update({ 
+                    data_carregamento: novaData,
+                    data_original: dataOriginalParaSalvar 
+                })
                 .eq('id', active.id);
 
             if (!error) {
@@ -109,7 +117,6 @@ export default function Dashboard() {
             <DndContext
                 sensors={sensors}
                 onDragStart={(e) => {
-                    // Impede o início do drag se não for admin
                     if (!isAdmin) return;
                     setActiveId(e.active.id as string);
                 }}
@@ -126,7 +133,16 @@ export default function Dashboard() {
                     <div className="grid grid-cols-7 auto-rows-fr min-h-[700px]">
                         {days.map((day, idx) => {
                             const dateKey = format(day, 'yyyy-MM-dd');
+                            
+                            // Cards que ESTÃO neste dia
                             const noDia = carregamentosFiltrados.filter(c => isSameDay(parseISO(c.data_carregamento), day));
+
+                            // CARDS ORIGINAIS: Que pertenciam a este dia, mas foram movidos
+                            const movidosDesteDia = carregamentosFiltrados.filter(c => 
+                                c.data_original && 
+                                isSameDay(parseISO(c.data_original), day) && 
+                                !isSameDay(parseISO(c.data_carregamento), day)
+                            );
 
                             return (
                                 <DayCell 
@@ -138,17 +154,34 @@ export default function Dashboard() {
                                     isMonth={isSameMonth(day, currentDate)}
                                     loading={loading}
                                 >
+                                    {/* Renderiza os cards atuais */}
                                     {noDia.map(c => (
-                                        <div key={c.id} style={{ opacity: activeId === c.id ? 0.3 : 1 }}>
+                                        <div key={c.id} style={{ opacity: activeId === c.id ? 0.3 : 1 }} className="relative group">
                                             <CardCarregamento
                                                 carregamento={c}
                                                 info={getOcupacaoInfo(c)}
                                                 cargasPendentes={cargasPendentes}
-                                                // Só permite o visual de "arrastável" se for admin
                                                 isDraggable={isAdmin}
                                             />
                                         </div>
                                     ))}
+
+                                    {/* Renderiza os "Fantasmas" (Marcadores de data original) */}
+                                    {movidosDesteDia.length > 0 && (
+                                        <div className="mt-2 pt-2 border-t border-dashed border-zinc-200 space-y-1">
+                                            <span className="text-xs font-bold text-zinc-500 uppercase tracking-tight">Previsto aqui:</span>
+                                            {movidosDesteDia.map(m => (
+                                                <div 
+                                                    key={`previsto-${m.id}`}
+                                                    className="flex items-center gap-1.5 px-2 py-1 bg-zinc-100/50 border border-zinc-200 rounded text-xs text-zinc-500 line-through italic cursor-pointer"
+                                                    title={`Movido para: ${format(parseISO(m.data_carregamento), 'dd/MM')}`}
+                                                >
+                                                    <div className="w-1 h-1 rounded-full bg-zinc-400 font-bold" />
+                                                    <span className="truncate">TP-{m.estado_destino || 'Carregamento'}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </DayCell>
                             );
                         })}
@@ -175,7 +208,7 @@ export default function Dashboard() {
     );
 }
 
-// ... Resto do componente HeaderActions permanece o mesmo ...
+// --- Componente HeaderActions ---
 
 interface HeaderActionsProps {
     currentDate: Date;

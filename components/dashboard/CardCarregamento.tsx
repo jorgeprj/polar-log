@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { MapPin, AlertTriangle, GripVertical, FileSearch, Lock, Truck, Loader2 } from 'lucide-react';
+import { 
+    MapPin, AlertTriangle, GripVertical, FileSearch, 
+    Lock, Truck, Loader2, History, ArrowRight 
+} from 'lucide-react';
 import { ModalDetalhes } from './ModalDetalhes';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useAuth } from '@/contexts/AuthContext';
-
+import { isBefore, parseISO, format } from 'date-fns';
 
 interface CardProps {
     carregamento?: any;
@@ -40,6 +43,23 @@ export default function CardCarregamento({ carregamento, info, cargasPendentes, 
         zIndex: isDragging ? 50 : 1,
     }), [transform, isDragging]);
 
+    // Lógica de Comparação de Datas
+    const alteracaoData = useMemo(() => {
+        if (!carregamento?.data_original || !carregamento?.data_carregamento) return null;
+        
+        const original = parseISO(carregamento.data_original);
+        const atual = parseISO(carregamento.data_carregamento);
+        
+        if (format(original, 'yyyy-MM-dd') === format(atual, 'yyyy-MM-dd')) return null;
+
+        const adiantado = isBefore(atual, original);
+        return {
+            tipo: adiantado ? 'Adiantado' : 'Reagendado',
+            cor: adiantado ? 'text-blue-600 bg-blue-50 border-blue-100' : 'text-amber-600 bg-amber-50 border-amber-100',
+            dataOriginal: format(original, 'dd/MM')
+        };
+    }, [carregamento?.data_original, carregamento?.data_carregamento]);
+
     if (isLoading) return <SkeletonCard />;
     if (!carregamento || !info) return null;
 
@@ -68,7 +88,17 @@ export default function CardCarregamento({ carregamento, info, cargasPendentes, 
                 {...(!isFinalizado && isDraggable ? { ...listeners, ...attributes } : {})}
                 onClick={handleCardClick}
             >
-                {/* Feedback discreto apenas no primeiro load da página */}
+                {/* Badge de Data Alterada */}
+                {alteracaoData && !isFinalizado && (
+                    <div 
+                        className={`absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 border rounded text-[10px] font-black uppercase tracking-tighter shadow-sm z-20 ${alteracaoData.cor}`}
+                        title={`Data original: ${alteracaoData.dataOriginal}`}
+                    >
+                        <History size={10} />
+                        {alteracaoData.tipo}
+                    </div>
+                )}
+
                 {authLoading && (
                     <div className="absolute top-2 right-2 animate-spin text-zinc-300">
                         <Loader2 size={12} />
@@ -125,7 +155,7 @@ export default function CardCarregamento({ carregamento, info, cargasPendentes, 
     );
 }
 
-// Sub-componentes auxiliares
+// Sub-componentes auxiliares permanecem os mesmos...
 function HeaderSection({ config, isOverloaded, isFinalizado }: any) {
     return (
         <div className="flex justify-between items-start mb-2">
