@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { X, AlertCircle, BarChart3, Globe, ArrowRight, Truck, Loader2, Package } from "lucide-react";
+import { X, AlertCircle, BarChart3, Globe, ArrowRight, Truck, Loader2, Package, ArrowUp, ArrowDown } from "lucide-react";
 import { useEstadoMetrics } from "@/hooks/useEstadoMetrics";
 import MainLayout from '@/components/layout/MainLayout';
 import { usePathname } from 'next/navigation';
@@ -22,6 +22,14 @@ const ufMapper: Record<string, string> = {
     "Rio de Janeiro": "RJ", "Rio Grande do Norte": "RN", "Rio Grande do Sul": "RS",
     "Rondônia": "RO", "Roraima": "RR", "Santa Catarina": "SC", "São Paulo": "SP",
     "Sergipe": "SE", "Tocantins": "TO"
+};
+
+const ESTADO_BASELINES: Record<string, number> = {
+    "AL": 0.1212, "AM": 0.2284, "BA": 0.1484, "CE": 0.1277, "DF": 0.0878,
+    "ES": 0.1508, "GO": 0.0937, "MA": 0.2372, "MG": 0.0998, "MS": 0.1340,
+    "MT": 0.1290, "PA": 0.2305, "PB": 0.1777, "PE": 0.1250, "PI": 0.2165,
+    "PR": 0.0917, "RJ": 0.1076, "RN": 0.1645, "RO": 0.4342, "RS": 0.1249,
+    "SC": 0.0799, "SE": 0.1158, "SP": 0.0534, "TO": 0.2909
 };
 
 const ufToName = Object.fromEntries(Object.entries(ufMapper).map(([k, v]) => [v, k]));
@@ -56,6 +64,11 @@ export default function MapaPerformance() {
         }
     };
 
+    const currentBaseline = useMemo(() => {
+        if (!selectedState) return 0.15;
+        return ESTADO_BASELINES[selectedState] ?? 0.15;
+    }, [selectedState]);
+
     return (
         <MainLayout title="Performance Geográfica">
             <div className="flex h-[calc(100vh-64px)] bg-[#F6F6F6] overflow-hidden font-sans">
@@ -63,8 +76,8 @@ export default function MapaPerformance() {
 
                     {/* MAPA OPERACIONAL */}
                     <section className="col-span-7 relative border-r border-zinc-200 bg-[#F0F0F0]">
-                        <div className="absolute top-10 left-10 z-[50] pointer-events-none">
-                            <div className="flex items-center gap-2 mb-2">
+                        <div className="absolute top-10 right-10 z-[50] pointer-events-none">
+                            <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-blue-600" />
                                 <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Logistics Hub Monitor</span>
                             </div>
@@ -132,11 +145,25 @@ export default function MapaPerformance() {
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-4">
-                                                    <UberStatCard
-                                                        label="Eficiência Média"
-                                                        value={`${((resumo?.custo_liq_vs_fat_liq ?? 0) * 100).toFixed(1)}%`}
-                                                        status={(resumo?.custo_liq_vs_fat_liq ?? 0) > 0.15 ? "danger" : "success"}
-                                                    />
+                                                    {(() => {
+                                                        const eficienciaAtual = resumo?.custo_liq_vs_fat_liq ?? 0;
+                                                        const diff = eficienciaAtual - currentBaseline;
+                                                        const percentDiff = currentBaseline !== 0 ? (diff / currentBaseline) * 100 : 0;
+                                                        const isHigher = diff > 0;
+
+                                                        return (
+                                                            <UberStatCard
+                                                                label="Eficiência Média"
+                                                                value={`${(eficienciaAtual * 100).toFixed(1)}%`}
+                                                                status={eficienciaAtual > currentBaseline ? "danger" : "success"}
+                                                                subValue={`Base: ${(currentBaseline * 100).toFixed(1)}%`}
+                                                                trend={{
+                                                                    diff: percentDiff,
+                                                                    isHigher: isHigher
+                                                                }}
+                                                            />
+                                                        );
+                                                    })()}
                                                     <UberStatCard
                                                         label="Volume Coletado"
                                                         value={`${resumo?.cubagem_total?.toFixed(2) ?? '0.00'} m³`}
@@ -151,7 +178,7 @@ export default function MapaPerformance() {
                                                     <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Detalhamento por Carregamento</h3>
                                                     <span className="text-[10px] bg-zinc-200 px-2 py-0.5 rounded font-bold">{carregamentos.length}</span>
                                                 </div>
-                                                
+
                                                 <div className="space-y-2">
                                                     {carregamentos.map((item) => (
                                                         <div key={item.carregamento_id} className="bg-white border border-zinc-200 p-4 hover:border-zinc-400 transition-colors group">
@@ -165,7 +192,7 @@ export default function MapaPerformance() {
                                                                     <p className="text-sm font-bold text-black">{fCurrency(item.fat_bruto_total)}</p>
                                                                 </div>
                                                             </div>
-                                                            
+
                                                             <div className="grid grid-cols-3 gap-2 pt-3 border-t border-zinc-50">
                                                                 <div>
                                                                     <p className="text-[9px] uppercase text-zinc-400 font-bold">Volume</p>
@@ -177,7 +204,7 @@ export default function MapaPerformance() {
                                                                 </div>
                                                                 <div className="text-right">
                                                                     <p className="text-[9px] uppercase text-zinc-400 font-bold">Efficiency</p>
-                                                                    <p className={`text-xs font-bold ${item.custo_liq_vs_fat_liq > 0.15 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                                    <p className={`text-xs font-bold ${item.custo_liq_vs_fat_liq > currentBaseline ? 'text-red-500' : 'text-emerald-600'}`}>
                                                                         {(item.custo_liq_vs_fat_liq * 100).toFixed(1)}%
                                                                     </p>
                                                                 </div>
@@ -189,7 +216,7 @@ export default function MapaPerformance() {
                                         </div>
                                     )}
                                 </div>
-                                
+
                                 <footer className="p-6 bg-white border-t border-zinc-200 shrink-0">
                                     <button className="w-full bg-black text-white py-4 text-sm font-semibold hover:bg-zinc-800 transition-all flex items-center justify-center gap-2">
                                         Exportar Dados de {selectedState}
@@ -241,12 +268,33 @@ function LoadingSkeleton() {
     );
 }
 
-function UberStatCard({ label, value, subValue, status }: { label: string, value: string, subValue?: string, status?: 'success' | 'danger' }) {
+function UberStatCard({
+    label,
+    value,
+    subValue,
+    status,
+    trend
+}: {
+    label: string,
+    value: string,
+    subValue?: string,
+    status?: 'success' | 'danger',
+    trend?: { diff: number, isHigher: boolean }
+}) {
     const statusColor = status === 'danger' ? 'text-red-600' : 'text-black';
     return (
         <div className="bg-white p-6 border border-zinc-200 shadow-sm">
             <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">{label}</p>
-            <p className={`text-2xl font-semibold tracking-tight ${statusColor}`}>{value}</p>
+            <div className="flex items-center gap-2">
+                <p className={`text-2xl font-semibold tracking-tight ${statusColor}`}>{value}</p>
+
+                {trend && (
+                    <span className={`flex items-center gap-0.5 px-1 rounded text-[10px] font-bold ${trend.isHigher ? 'text-red-500 bg-red-50' : 'text-emerald-600 bg-emerald-50'}`}>
+                        {trend.isHigher ? <ArrowUp size={10} strokeWidth={3} /> : <ArrowDown size={10} />}
+                        {Math.abs(trend.diff).toFixed(1)}%
+                    </span>
+                )}
+            </div>
             {subValue && <p className="text-[10px] text-zinc-400 mt-1 uppercase font-medium">{subValue}</p>}
         </div>
     );
