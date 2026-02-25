@@ -3,7 +3,8 @@
 import {
     LayoutDashboard, Truck, MapPin, BarChart3,
     Settings, LogOut, ChevronLeft, ChevronRight, Lock, Loader2,
-    BookText
+    BookText,
+    DollarSign
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -34,7 +35,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
         { icon: BookText, label: 'Padrão de Op. Logística', href: '/pol', adminOnly: false },
         { icon: MapPin, label: 'Mapa', href: '/brasil', adminOnly: true },
         { icon: Truck, label: 'Carregamentos', href: '/carregamentos', adminOnly: true },
-        { icon: BarChart3, label: 'Custos & BI', href: '/custos', adminOnly: true },
+        { icon: DollarSign, label: 'Custos', href: '/custos', adminOnly: true },
         { icon: Settings, label: 'Configurações', href: '/settings', adminOnly: true },
     ];
 
