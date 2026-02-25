@@ -185,7 +185,7 @@ export default function MapaPerformance() {
                                                             <div className="flex justify-between items-start mb-3">
                                                                 <div>
                                                                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight">ID Carregamento</p>
-                                                                    <p className="font-mono text-sm font-bold text-black">#{item.carregamento_id.toString().padStart(5, '0')}</p>
+                                                                    <p className="font-mono text-sm font-bold text-black">#{item.carregamento_id.toString().padStart(5, '0')} TP-{item.carregamentos?.estado_destino}</p>
                                                                 </div>
                                                                 <div className="text-right">
                                                                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight">Faturamento</p>

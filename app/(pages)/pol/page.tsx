@@ -24,21 +24,22 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface EstudoCustos {
     uf: string;
-    custosPorTP: Record<string, number>; // Ex: { 'Bahia': 450, 'SE': 420 }
+    custosPorTP: Record<string, number>;
+    inviaveis?: string[];
 }
 
-const TPS_NORDESTE = ['Bahia', 'SE', 'PE', 'RN', 'CE', 'PI'];
+const TPS_NORDESTE = ['BA', 'SE', 'PE', 'RN', 'CE', 'PI'];
 
 const DADOS_ESTUDO: EstudoCustos[] = [
-    { uf: 'AL', custosPorTP: { 'Bahia': 1565, 'SE': 904, 'PE': 904, 'RN': 1565, 'CE': 2566, 'PI': 2921 } },
-    { uf: 'BA', custosPorTP: { 'Bahia': 633, 'SE': 1281, 'PE': 1428, 'RN': 2665, 'CE': 2665, 'PI': 2665 } },
-    { uf: 'CE', custosPorTP: { 'Bahia': 2138, 'SE': 2138, 'PE': 1782, 'RN': 1445, 'CE': 684, 'PI': 1445 } },
-    { uf: 'MA', custosPorTP: { 'Bahia': 3708, 'SE': 3122, 'PE': 3708, 'RN': 3122, 'CE': 2690, 'PI': 1621 } },
-    { uf: 'PB', custosPorTP: { 'Bahia': 2144, 'SE': 1470, 'PE': 728, 'RN': 728, 'CE': 1470, 'PI': 2440 } },
-    { uf: 'PE', custosPorTP: { 'Bahia': 1797, 'SE': 1117, 'PE': 495, 'RN': 645, 'CE': 1555, 'PI': 2085 } },
-    { uf: 'PI', custosPorTP: { 'Bahia': 2846, 'SE': 2846, 'PE': 2846, 'RN': 2846, 'CE': 1525, 'PI': 676 } },
-    { uf: 'RN', custosPorTP: { 'Bahia': 2928, 'SE': 2184, 'PE': 906, 'RN': 696, 'CE': 1569, 'PI': 2928 } },
-    { uf: 'SE', custosPorTP: { 'Bahia': 1476, 'SE': 730, 'PE': 1595, 'RN': 2290, 'CE': 3071, 'PI': 3071 } },
+    { uf: 'AL', custosPorTP: { 'BA': 1565, 'SE': 904, 'PE': 904, 'RN': 1565, 'CE': 2566, 'PI': 2921 }, inviaveis: ['PE'] },
+    { uf: 'BA', custosPorTP: { 'BA': 633, 'SE': 1281, 'PE': 1428, 'RN': 2665, 'CE': 2665, 'PI': 2665 } },
+    { uf: 'CE', custosPorTP: { 'BA': 2138, 'SE': 2138, 'PE': 1782, 'RN': 1445, 'CE': 684, 'PI': 1445 } },
+    { uf: 'MA', custosPorTP: { 'BA': 3708, 'SE': 3122, 'PE': 3708, 'RN': 3122, 'CE': 2690, 'PI': 1621 } },
+    { uf: 'PB', custosPorTP: { 'BA': 2144, 'SE': 1470, 'PE': 728, 'RN': 728, 'CE': 1470, 'PI': 2440 } },
+    { uf: 'PE', custosPorTP: { 'BA': 1797, 'SE': 1117, 'PE': 495, 'RN': 645, 'CE': 1555, 'PI': 2085 } },
+    { uf: 'PI', custosPorTP: { 'BA': 2846, 'SE': 2846, 'PE': 2846, 'RN': 2846, 'CE': 1525, 'PI': 676 } },
+    { uf: 'RN', custosPorTP: { 'BA': 2928, 'SE': 2184, 'PE': 906, 'RN': 696, 'CE': 1569, 'PI': 2928 } },
+    { uf: 'SE', custosPorTP: { 'BA': 1476, 'SE': 730, 'PE': 1595, 'RN': 2290, 'CE': 3071, 'PI': 3071 } },
 ];
 
 export function PolHeaderActions() {
@@ -258,9 +259,10 @@ export default function PaginaPOL() {
                                 </thead>
                                 <tbody className="divide-y-2 divide-zinc-100">
                                     {DADOS_ESTUDO.map((linha) => {
-                                        // Achar o menor valor da linha para destacar
-                                        const valores = Object.values(linha.custosPorTP);
-                                        const menorValor = Math.min(...valores);
+                                        const custosValidos = Object.entries(linha.custosPorTP)
+                                            .filter(([tp]) => !linha.inviaveis?.includes(tp))
+                                            .map(([_, valor]) => valor);
+                                        const menorValorValido = Math.min(...custosValidos);
 
                                         return (
                                             <tr key={linha.uf} className="hover:bg-zinc-50/50 transition-colors group">
@@ -269,21 +271,40 @@ export default function PaginaPOL() {
                                                 </td>
                                                 {TPS_NORDESTE.map(tp => {
                                                     const valor = linha.custosPorTP[tp];
-                                                    const isMenor = valor === menorValor;
+                                                    const isInviavel = linha.inviaveis?.includes(tp);
+                                                    const isMenor = !isInviavel && valor === menorValorValido;
 
                                                     return (
                                                         <td
                                                             key={tp}
-                                                            className={`px-4 py-4 text-center border-r border-zinc-100 transition-all ${isMenor ? 'bg-emerald-50 font-black' : 'text-zinc-400'
+                                                            className={`px-4 py-4 text-center border-r border-zinc-100 transition-all ${isInviavel
+                                                                ? 'bg-red-50/50' // Fundo vermelho bem clarinho
+                                                                : isMenor
+                                                                    ? 'bg-emerald-50 font-black'
+                                                                    : 'text-zinc-400'
                                                                 }`}
                                                         >
                                                             <div className="flex flex-col items-center">
-                                                                <span className={`text-sm ${isMenor ? 'text-emerald-700' : 'text-zinc-600'}`}>
-                                                                    R$ {valor.toFixed(2)}
+                                                                {/* O valor sempre aparece */}
+                                                                <span className={`text-sm ${isInviavel
+                                                                    ? 'text-red-900/60 font-medium' // Valor em vermelho escuro/opaco se inviável
+                                                                    : isMenor
+                                                                        ? 'text-emerald-700'
+                                                                        : 'text-zinc-600'
+                                                                    }`}>
+                                                                    R$ {valor?.toFixed(2)}
                                                                 </span>
-                                                                {isMenor && (
-                                                                    <span className="text-[8px] bg-emerald-600 text-white px-1 mt-1 rounded uppercase tracking-tighter">Melhor Opção</span>
-                                                                )}
+
+                                                                {/* Etiquetas condicionais */}
+                                                                {isInviavel ? (
+                                                                    <span className="text-[8px] bg-red-600 text-white px-1 mt-1 rounded uppercase font-black tracking-tighter">
+                                                                        Opção Inválida
+                                                                    </span>
+                                                                ) : isMenor ? (
+                                                                    <span className="text-[8px] bg-emerald-600 text-white px-1 mt-1 rounded uppercase tracking-tighter">
+                                                                        Melhor Opção
+                                                                    </span>
+                                                                ) : null}
                                                             </div>
                                                         </td>
                                                     );

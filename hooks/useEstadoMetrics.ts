@@ -10,6 +10,7 @@ export interface CarregamentoDetail {
     fat_bruto_total: number;
     custo_liq_vs_fat_liq: number;
     real_m3_fat: number;
+    carregamentos: { estado_destino: string } | null;
 }
 
 export interface EstadoMetrics {
@@ -46,7 +47,12 @@ export function useEstadoMetrics(uf: string | null) {
             try {
                 const { data: results, error: supabaseError } = await supabase
                     .from('view_desempenho_estado_carregamento')
-                    .select('*')
+                    .select(`
+                            *,
+                            carregamentos:carregamento_id (
+                                estado_destino
+                            )
+                        `)
                     .eq('estado', uf)
                     .order('carregamento_id', { ascending: false });
 
@@ -60,7 +66,7 @@ export function useEstadoMetrics(uf: string | null) {
                         fat_liq_total: acc.fat_liq_total + (curr.fat_liq_total || 0),
                         custo_liquido_total: acc.custo_liquido_total + (curr.custo_liquido_total || 0),
                     }), {
-                        qtd_pdvs: 0, cubagem_total: 0, fat_bruto_total: 0, 
+                        qtd_pdvs: 0, cubagem_total: 0, fat_bruto_total: 0,
                         fat_liq_total: 0, custo_liquido_total: 0
                     });
 
@@ -72,7 +78,7 @@ export function useEstadoMetrics(uf: string | null) {
                             real_m3_fat: acumulado.cubagem_total > 0 ? acumulado.fat_bruto_total / acumulado.cubagem_total : 0,
                             custo_liq_vs_fat_liq: acumulado.fat_liq_total > 0 ? acumulado.custo_liquido_total / acumulado.fat_liq_total : 0,
                         },
-                        carregamentos: results // Lista completa para a tabela
+                        carregamentos: results as any
                     });
                 } else {
                     setData({ resumo: null, carregamentos: [] });
