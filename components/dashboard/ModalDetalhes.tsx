@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { useCarregamentoDetails } from "@/hooks/useCarregamentoDetails";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calculator, Database, Truck, Box, Info, AlertCircle } from "lucide-react";
+import { Calculator, Database, Truck, Box, Info, AlertCircle, Receipt, LayoutList } from "lucide-react";
 import { useMemo } from "react";
 
 interface ModalDetalhesProps {
@@ -46,13 +46,15 @@ export function ModalDetalhes({
             const cargasDoEstado = (cargasPendentes || []).filter(c => c.uf === uf);
             const cubagemTotal = cargasDoEstado.reduce((acc, curr) => acc + (Number(curr.cubagem) || 0), 0);
             const fatTotal = cargasDoEstado.reduce((acc, curr) => acc + (Number(curr.faturamento) || 0), 0);
+            const qtdPdvs = cargasDoEstado.length;
 
             return {
                 estado: uf,
                 modal: perfil || "N/A",
                 fat_bruto: fatTotal,
                 cubagem_total: cubagemTotal,
-                qtd_pdvs: cargasDoEstado.length
+                qtd_pdvs: qtdPdvs,
+                drop_size: qtdPdvs > 0 ? cubagemTotal / qtdPdvs : 0
             };
         }).filter(item => item.qtd_pdvs > 0);
 
@@ -72,17 +74,29 @@ export function ModalDetalhes({
                 fat_util: faturamentoUtil,
                 custo_atribuido: proporcaoCustoEstado,
                 custo_liq_vs_fat_liq: faturamentoUtil > 0 ? (proporcaoCustoEstado / faturamentoUtil) : 0,
-                excesso: fatorCapacidadeGeral < 1
+                excesso: fatorCapacidadeGeral < 1,
+                rs_m3: item.cubagem_total > 0 ? (item.fat_bruto / item.cubagem_total) : 0
             };
         });
     }, [estadosAtendidos, cargasPendentes, statsPrevistas, perfil, capacidadeVeiculo]);
 
-    const displayData = isPlanejamento ? dataPrevista : (dataReal || []);
+    const dataRealProcessada = useMemo(() => {
+        return (dataReal || []).map((item: any) => ({
+            ...item,
+            rs_m3: item.rs_m3 || (item.cubagem_total > 0 ? (item.fat_liq_total / item.cubagem_total) : 0),
+            drop_size: item.drop_size || (item.qtd_pdvs > 0 ? item.cubagem_total / item.qtd_pdvs : 0)
+        }));
+    }, [dataReal]);
+
+    const displayData = isPlanejamento ? dataPrevista : dataRealProcessada;
 
     const totais = useMemo(() => {
         const cubagem = displayData.reduce((acc: number, curr: any) => acc + (curr.cubagem_total || 0), 0);
         const faturamentoTotalBruto = displayData.reduce((acc: number, curr: any) => acc + (curr.fat_liq_total || 0), 0);
+        const totalPdvs = displayData.reduce((acc: number, curr: any) => acc + (curr.qtd_pdvs || 0), 0);
+        
         const ocupacaoPercent = capacidadeVeiculo > 0 ? (cubagem / capacidadeVeiculo) * 100 : 0;
+        const dropSizeMedio = totalPdvs > 0 ? cubagem / totalPdvs : 0;
 
         let percentualCustoFat = 0;
         let faturamentoExibicao = 0;
@@ -99,13 +113,13 @@ export function ModalDetalhes({
             percentualCustoFat = faturamentoExibicao > 0 ? (custoConsiderado / faturamentoExibicao) * 100 : 0;
         }
 
-        return { cubagem, percentualOcupacao: ocupacaoPercent, percentualCustoFat, faturamentoExibicao, custoConsiderado };
+        return { cubagem, percentualOcupacao: ocupacaoPercent, percentualCustoFat, faturamentoExibicao, custoConsiderado, dropSizeMedio };
     }, [displayData, isPlanejamento, statsPrevistas, capacidadeVeiculo]);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[1000px] p-0 border-none bg-[#F6F6F6] shadow-2xl overflow-hidden font-sans max-h-[90vh] overflow-y-auto  custom-scrollbar">
-                {/* Header Estilo Uber: Limpo e Directo */}
+            <DialogContent className="sm:max-w-[1100px] p-0 border-none bg-[#F6F6F6] shadow-2xl overflow-hidden font-sans max-h-[90vh] overflow-y-auto custom-scrollbar">
+
                 <DialogHeader className="p-8 bg-black text-white">
                     <div className="flex justify-between items-center">
                         <div className="space-y-1">
@@ -140,15 +154,14 @@ export function ModalDetalhes({
                         </div>
                     </div>
 
-                    {/* Dashboard Cards: Mais espaço, bordas finas */}
                     <div className="mt-10 grid grid-cols-1 md:grid-cols-4 gap-4">
                         <SummaryCard
-                            label="Custo Projetado"
+                            label={isPlanejamento ? "Custo Projetado" : "Custo Realizado"}
                             value={fCurrency(totais.custoConsiderado)}
-                            visible={isPlanejamento}
+                            icon={<Receipt size={14} className="opacity-40" />}
                         />
                         <SummaryCard
-                            label="Faturamento Útil"
+                            label="Faturamento Total"
                             value={fCurrency(totais.faturamentoExibicao)}
                             highlight="text-white"
                         />
@@ -157,7 +170,7 @@ export function ModalDetalhes({
                             value={`${totais.percentualCustoFat.toFixed(1)}%`}
                         />
                         <div className="bg-white/10 p-5 rounded-sm border border-white/10 flex flex-col justify-between">
-                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Ocupação Atual</span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Ocupação Total</span>
                             <div className="mt-2 space-y-2">
                                 <div className="flex justify-between items-baseline">
                                     <span className="text-xl font-medium">
@@ -178,7 +191,6 @@ export function ModalDetalhes({
                     </div>
                 </DialogHeader>
 
-                {/* Body: Tabela com tipografia Uber-like */}
                 <div className="px-6 py-2 bg-white">
                     <div className="max-h-[45vh] overflow-y-auto custom-scrollbar">
                         {loading ? (
@@ -191,14 +203,16 @@ export function ModalDetalhes({
                                     <tr className="text-left border-b border-zinc-100">
                                         <th className="px-4 py-6 text-[11px] font-bold uppercase tracking-wider text-zinc-400 border-b">Estado / PDVs</th>
                                         <th className="px-4 py-6 text-[11px] font-bold uppercase tracking-wider text-zinc-400 border-b text-center">Faturamento</th>
-                                        <th className="px-4 py-6 text-[11px] font-bold uppercase tracking-wider text-zinc-400 border-b text-center">Eficiência</th>
-                                        <th className="px-4 py-6 text-[11px] font-bold uppercase tracking-wider text-zinc-400 border-b text-right">Carga m³</th>
+                                        <th className="px-4 py-6 text-[11px] font-bold uppercase tracking-wider text-zinc-400 border-b text-center">Carga m³</th>
+                                        <th className="px-4 py-6 text-[11px] font-bold uppercase tracking-wider text-zinc-400 border-b text-center">R$ / m³</th>
+                                        <th className="px-4 py-6 text-[11px] font-bold uppercase tracking-wider text-zinc-400 border-b text-center">Drop-size (m³)</th>
+                                        <th className="px-4 py-6 text-[11px] font-bold uppercase tracking-wider text-zinc-400 border-b text-right">Eficiência</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-zinc-50">
                                     {displayData.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="py-20 text-center">
+                                            <td colSpan={6} className="py-20 text-center">
                                                 <div className="flex flex-col items-center opacity-30">
                                                     <Info size={40} />
                                                     <p className="mt-2 font-medium">Sem dados para esta operação</p>
@@ -219,37 +233,27 @@ export function ModalDetalhes({
                                                 <td className="px-4 py-5 text-center font-medium text-zinc-900">
                                                     {fCurrency(isPlanejamento ? item.fat_util : item.fat_liq_total)}
                                                 </td>
+                                                <td className="px-4 py-5 text-center font-medium text-black">
+                                                    {item.cubagem_total.toFixed(2)}m³
+                                                </td>
+                                                <td className="px-4 py-5 text-center font-bold text-zinc-700">
+                                                    {fCurrency(item.rs_m3)}
+                                                </td>
                                                 <td className="px-4 py-5 text-center">
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-sm font-bold text-zinc-700">
+                                                            {item.drop_size.toFixed(2)}
+                                                        </span>
+                                                        <span className="text-[9px] uppercase text-zinc-400 font-bold">m³/pdv</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-5 text-right">
                                                     <span className={`text-sm font-semibold ${isPlanejamento && item.excesso ? 'text-amber-600' : 'text-green-600'}`}>
                                                         {fPercent(item.custo_liq_vs_fat_liq)}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-5 text-right font-medium text-black">
-                                                    {item.cubagem_total.toFixed(2)}m³
-                                                </td>
                                             </tr>
                                         ))
-
-                                    )}
-                                    {isPlanejamento && (
-                                        <tr className="bg-zinc-50/50 font-bold border-t-2 border-zinc-200">
-                                            <td className="px-4 py-6">
-                                                <div className="flex items-center gap-4">
-                                                    <span className="text-sm uppercase tracking-wider text-zinc-500">Total Atual</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-6 text-center text-black">
-                                                {fCurrency(totais.faturamentoExibicao)}
-                                            </td>
-                                            <td className="px-4 py-6 text-center">
-                                                <span className="text-sm text-black">
-                                                    -
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-6 text-right text-black">
-                                                {totais.cubagem.toFixed(2)}m³
-                                            </td>
-                                        </tr>
                                     )}
                                 </tbody>
                             </table>
@@ -257,15 +261,14 @@ export function ModalDetalhes({
                     </div>
                 </div>
 
-                {/* Footer: Informativo e focado em ação */}
                 <div className="p-8 bg-white border-t flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex items-start gap-3 text-zinc-500">
                         <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
                         <div className="space-y-1">
                             <p className="text-xs leading-relaxed max-w-md">
                                 {isPlanejamento
-                                    ? "Projeção limitada ao teto de capacidade física. O faturamento foi recalculado proporcionalmente para refletir o carregamento máximo permitido."
-                                    : "Valores consolidados em base real. A eficiência reflete o custo logístico direto sobre o faturamento líquido faturado."}
+                                    ? "Projeção baseada na capacidade física. O drop-size indica o volume médio estimado por ponto de entrega da carteira."
+                                    : "Valores consolidados em base real. O drop-size reflete a densidade média efetiva por parada realizada."}
                             </p>
                         </div>
                     </div>
@@ -281,12 +284,14 @@ export function ModalDetalhes({
     );
 }
 
-// Componente auxiliar para manter o código limpo
-function SummaryCard({ label, value, visible = true, highlight = "text-white/90" }: { label: string, value: string, visible?: boolean, highlight?: string }) {
+function SummaryCard({ label, value, visible = true, highlight = "text-white/90", icon }: { label: string, value: string, visible?: boolean, highlight?: string, icon?: React.ReactNode }) {
     if (!visible) return null;
     return (
         <div className="bg-white/10 p-5 rounded-sm border border-white/10 flex flex-col justify-between">
-            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{label}</span>
+            <div className="flex justify-between items-start">
+                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{label}</span>
+                {icon}
+            </div>
             <p className={`text-2xl font-semibold mt-2 ${highlight}`}>{value}</p>
         </div>
     );
